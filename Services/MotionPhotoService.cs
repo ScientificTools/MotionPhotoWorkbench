@@ -1,6 +1,5 @@
 using System;
 using System.IO;
-
 using System.Text;
 
 namespace MotionPhotoWorkbench.Services;
@@ -42,9 +41,7 @@ public sealed class MotionPhotoService
             {
                 int start = i - 4;
                 if (start >= 0)
-                {
                     return start;
-                }
             }
         }
 
@@ -57,9 +54,7 @@ public sealed class MotionPhotoService
             {
                 int ftyp = idx - 4;
                 if (ftyp >= 4 && ascii.AsSpan(ftyp, 4).SequenceEqual("ftyp"))
-                {
                     return ftyp - 4;
-                }
             }
         }
 

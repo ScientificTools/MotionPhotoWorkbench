@@ -40,7 +40,7 @@ public sealed class FfmpegService
         var psi = new ProcessStartInfo
         {
             FileName = FfmpegPath,
-            Arguments = $"-y -i \"{inputFile}\" \"{outputPattern}\"",
+            Arguments = $"-nostdin -y -i \"{inputFile}\" \"{outputPattern}\"",
             RedirectStandardError = true,
             RedirectStandardOutput = true,
             UseShellExecute = false,
@@ -50,10 +50,12 @@ public sealed class FfmpegService
         using var process = new Process { StartInfo = psi };
         process.Start();
 
-        string stdout = await process.StandardOutput.ReadToEndAsync(cancellationToken);
-        string stderr = await process.StandardError.ReadToEndAsync(cancellationToken);
+        Task<string> stdoutTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
+        Task<string> stderrTask = process.StandardError.ReadToEndAsync(cancellationToken);
 
         await process.WaitForExitAsync(cancellationToken);
+        string stdout = await stdoutTask;
+        string stderr = await stderrTask;
 
         if (process.ExitCode != 0)
         {
@@ -96,7 +98,7 @@ public sealed class FfmpegService
             var psi = new ProcessStartInfo
             {
                 FileName = FfmpegPath,
-                Arguments = $"-y -framerate {fpsText} -i \"{inputPattern}\" -c:v libx264 -preset medium -crf 18 -pix_fmt yuv420p -movflags +faststart \"{outputFile}\"",
+                Arguments = $"-nostdin -y -framerate {fpsText} -i \"{inputPattern}\" -c:v libx264 -preset medium -crf 18 -pix_fmt yuv420p -movflags +faststart \"{outputFile}\"",
                 RedirectStandardError = true,
                 RedirectStandardOutput = true,
                 UseShellExecute = false,
@@ -106,10 +108,12 @@ public sealed class FfmpegService
             using var process = new Process { StartInfo = psi };
             process.Start();
 
-            string stdout = await process.StandardOutput.ReadToEndAsync(cancellationToken);
-            string stderr = await process.StandardError.ReadToEndAsync(cancellationToken);
+            Task<string> stdoutTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
+            Task<string> stderrTask = process.StandardError.ReadToEndAsync(cancellationToken);
 
             await process.WaitForExitAsync(cancellationToken);
+            string stdout = await stdoutTask;
+            string stderr = await stderrTask;
 
             if (process.ExitCode != 0)
             {

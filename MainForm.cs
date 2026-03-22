@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
 using System.Linq;
@@ -7,6 +8,10 @@ using System.Windows.Forms;
 using MotionPhotoWorkbench.Models;
 using MotionPhotoWorkbench.Services;
 using MotionPhotoWorkbench.Utils;
+using SixLabors.ImageSharp.Formats.Png;
+using SixLabors.ImageSharp.PixelFormats;
+using ISImage = SixLabors.ImageSharp.Image;
+using ISImageRgba32 = SixLabors.ImageSharp.Image<SixLabors.ImageSharp.PixelFormats.Rgba32>;
 using SDImage = System.Drawing.Image;
 using SDPointF = System.Drawing.PointF;
 using SDSize = System.Drawing.Size;
@@ -24,6 +29,7 @@ public partial class MainForm : Form
     private ProjectState _project = new();
     private int _currentIndex = -1;
     private SDImage? _currentBitmap;
+    private bool _isRefreshingFrameList;
 
     public MainForm()
     {
@@ -143,7 +149,9 @@ public partial class MainForm : Form
                 .OrderBy(f => f, StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
-            _project.Frames = files
+            var validFiles = await Task.Run(() => FilterReadableFrames(files));
+
+            _project.Frames = validFiles
                 .Select((path, i) => new FrameInfo
                 {
                     Index = i,
@@ -156,13 +164,18 @@ public partial class MainForm : Form
 
             if (_project.Frames.Count > 0)
             {
-                LoadFrame(0);
-                lblStatus.Text = $"Frames extraites : {_project.Frames.Count}";
+                BeginInvoke(new Action(() => LoadFrame(0)));
+                int skippedCount = files.Count - validFiles.Count;
+                lblStatus.Text = skippedCount > 0
+                    ? $"Frames extraites : {_project.Frames.Count} ({skippedCount} ignorée(s), image(s) illisible(s))"
+                    : $"Frames extraites : {_project.Frames.Count}";
             }
             else
             {
                 ClearCurrentImage();
-                lblStatus.Text = "Aucune frame extraite.";
+                lblStatus.Text = files.Count > 0
+                    ? "Aucune frame exploitable : toutes les images extraites sont illisibles."
+                    : "Aucune frame extraite.";
             }
         }
         catch (Exception ex)
@@ -199,8 +212,36 @@ public partial class MainForm : Form
 
     private void RefreshFrameList()
     {
-        listBoxFrames.DataSource = null;
-        listBoxFrames.DataSource = _project.Frames;
+        int selectedIndex = listBoxFrames.SelectedIndex;
+        _isRefreshingFrameList = true;
+
+        try
+        {
+            listBoxFrames.BeginUpdate();
+            listBoxFrames.Items.Clear();
+
+            foreach (var frame in _project.Frames)
+                listBoxFrames.Items.Add(frame);
+
+            if (_project.Frames.Count == 0)
+            {
+                listBoxFrames.ClearSelected();
+            }
+            else
+            {
+                int targetIndex = selectedIndex >= 0 && selectedIndex < _project.Frames.Count
+                    ? selectedIndex
+                    : Math.Clamp(_currentIndex, 0, _project.Frames.Count - 1);
+
+                if (targetIndex >= 0)
+                    listBoxFrames.SelectedIndex = targetIndex;
+            }
+        }
+        finally
+        {
+            listBoxFrames.EndUpdate();
+            _isRefreshingFrameList = false;
+        }
     }
 
     private void LoadFrame(int index)
@@ -212,9 +253,7 @@ public partial class MainForm : Form
 
         ClearCurrentImage();
 
-        using var fs = File.OpenRead(_project.Frames[index].SourcePath);
-        using var loaded = SDImage.FromStream(fs);
-        _currentBitmap = (SDImage)loaded.Clone();
+        _currentBitmap = LoadDisplayBitmap(_project.Frames[index].SourcePath);
         pictureBoxFrame.Image = (SDImage)_currentBitmap.Clone();
 
         listBoxFrames.SelectedIndex = index;
@@ -248,6 +287,9 @@ public partial class MainForm : Form
 
     private void listBoxFrames_SelectedIndexChanged(object sender, EventArgs e)
     {
+        if (_isRefreshingFrameList)
+            return;
+
         if (listBoxFrames.SelectedIndex >= 0 && listBoxFrames.SelectedIndex != _currentIndex)
             LoadFrame(listBoxFrames.SelectedIndex);
     }
@@ -582,6 +624,24 @@ public partial class MainForm : Form
             return;
         }
 
+        UseWaitCursor = true;
+        lblStatus.Text = "Chargement du projet...";
+
+        try
+        {
+            await EnsureProjectWorkingFilesAsync(loaded);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, ex.Message, "Erreur", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            lblStatus.Text = "Erreur";
+            return;
+        }
+        finally
+        {
+            UseWaitCursor = false;
+        }
+
         _project = loaded;
         RefreshFrameList();
 
@@ -611,6 +671,119 @@ public partial class MainForm : Form
         using var fs = File.OpenRead(previewPath);
         using var image = new Bitmap(fs);
         return new Bitmap(image);
+    }
+
+    private async Task EnsureProjectWorkingFilesAsync(ProjectState project)
+    {
+        if (string.IsNullOrWhiteSpace(project.InputFilePath))
+            throw new InvalidOperationException("Le projet ne contient pas de chemin d'image source.");
+
+        if (!File.Exists(project.InputFilePath))
+            throw new FileNotFoundException($"Image source introuvable : {project.InputFilePath}");
+
+        if (string.IsNullOrWhiteSpace(project.WorkingDirectory))
+        {
+            project.WorkingDirectory = Path.Combine(
+                Path.GetDirectoryName(project.InputFilePath)!,
+                Path.GetFileNameWithoutExtension(project.InputFilePath) + "_work");
+        }
+
+        if (ProjectHasUsableFrames(project))
+            return;
+
+        lblStatus.Text = "Reconstruction du repertoire de travail...";
+
+        List<FrameInfo> savedFrames = project.Frames
+            .Select(frame => new FrameInfo
+            {
+                Index = frame.Index,
+                SourcePath = frame.SourcePath,
+                IsKept = frame.IsKept,
+                AnchorPoint = frame.AnchorPoint,
+                OffsetX = frame.OffsetX,
+                OffsetY = frame.OffsetY
+            })
+            .ToList();
+
+        string framesDir = Path.Combine(project.WorkingDirectory, "frames");
+        string sourceForExtraction = ResolveSourceForExtraction(project.InputFilePath, project.WorkingDirectory, out string sourceMessage);
+        lblStatus.Text = $"{sourceMessage} Reconstruction des frames...";
+        Application.DoEvents();
+
+        await _ffmpegService.ExtractFramesAsync(sourceForExtraction, framesDir);
+
+        var files = Directory.GetFiles(framesDir, "*.png")
+            .OrderBy(f => f, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var validFiles = await Task.Run(() => FilterReadableFrames(files));
+        var savedByIndex = savedFrames.ToDictionary(frame => frame.Index);
+
+        project.Frames = validFiles
+            .Select((path, i) =>
+            {
+                if (savedByIndex.TryGetValue(i, out FrameInfo? savedFrame))
+                {
+                    return new FrameInfo
+                    {
+                        Index = i,
+                        SourcePath = path,
+                        IsKept = savedFrame.IsKept,
+                        AnchorPoint = savedFrame.AnchorPoint,
+                        OffsetX = savedFrame.OffsetX,
+                        OffsetY = savedFrame.OffsetY
+                    };
+                }
+
+                return new FrameInfo
+                {
+                    Index = i,
+                    SourcePath = path,
+                    IsKept = true
+                };
+            })
+            .ToList();
+    }
+
+    private static bool ProjectHasUsableFrames(ProjectState project)
+    {
+        if (project.Frames.Count == 0)
+            return false;
+
+        return project.Frames.All(frame =>
+            !string.IsNullOrWhiteSpace(frame.SourcePath) &&
+            File.Exists(frame.SourcePath));
+    }
+
+    private static List<string> FilterReadableFrames(IReadOnlyList<string> files)
+    {
+        var readable = new List<string>(files.Count);
+
+        foreach (string file in files)
+        {
+            try
+            {
+                var info = ISImage.Identify(file);
+                if (info is not null && info.Width > 0 && info.Height > 0)
+                    readable.Add(file);
+            }
+            catch
+            {
+                // Ignore unreadable frames to avoid freezing later when displaying them.
+            }
+        }
+
+        return readable;
+    }
+
+    private static Bitmap LoadDisplayBitmap(string sourcePath)
+    {
+        using ISImageRgba32 image = ISImage.Load<Rgba32>(sourcePath);
+        using var ms = new MemoryStream();
+        image.Save(ms, new PngEncoder());
+        ms.Position = 0;
+        using var bitmap = new Bitmap(ms);
+        return new Bitmap(bitmap);
     }
 
     private static decimal ClampToRange(decimal value, decimal minimum, decimal maximum)
