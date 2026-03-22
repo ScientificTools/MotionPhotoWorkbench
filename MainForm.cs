@@ -36,7 +36,21 @@ public partial class MainForm : Form
         _gifExportService = new GifExportService();
         _persistenceService = new ProjectPersistenceService();
 
+        WindowState = FormWindowState.Maximized;
         pictureBoxFrame.SizeMode = PictureBoxSizeMode.Zoom;
+        listBoxFrames.DrawMode = DrawMode.OwnerDrawFixed;
+        listBoxFrames.ItemHeight = Math.Max(listBoxFrames.Font.Height + 10, 28);
+        listBoxFrames.DrawItem += listBoxFrames_DrawItem;
+        btnPrev.MinimumSize = new Size(0, 40);
+        btnNext.MinimumSize = new Size(0, 40);
+        btnToggleKeep.MinimumSize = new Size(0, 40);
+        btnPrev.Height = 40;
+        btnNext.Height = 40;
+        btnToggleKeep.Height = 40;
+        btnToggleKeep.MinimumSize = new Size(0, 44);
+        btnRenderAndExportGif.AutoSize = false;
+        btnRenderAndExportGif.MinimumSize = new Size(0, 48);
+        btnRenderAndExportGif.Height = 48;
         RefreshFrameList();
         UpdateFrameInfo();
     }
@@ -238,6 +252,94 @@ public partial class MainForm : Form
             LoadFrame(listBoxFrames.SelectedIndex);
     }
 
+    private void listBoxFrames_MouseDown(object? sender, MouseEventArgs e)
+    {
+        if (e.Button != MouseButtons.Right)
+            return;
+
+        int index = listBoxFrames.IndexFromPoint(e.Location);
+        if (index < 0 || index >= _project.Frames.Count)
+            return;
+
+        listBoxFrames.SelectedIndex = index;
+        menuToggleKeep.Text = _project.Frames[index].IsKept ? "Ecarter la frame" : "Reintegrer la frame";
+    }
+
+    private void listBoxFrames_KeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.KeyCode is not (Keys.Delete or Keys.Enter))
+            return;
+
+        ToggleSelectedFrameKeepState();
+        e.Handled = true;
+    }
+
+    private void menuToggleKeep_Click(object? sender, EventArgs e)
+    {
+        ToggleSelectedFrameKeepState();
+    }
+
+    private void ToggleSelectedFrameKeepState()
+    {
+        if (listBoxFrames.SelectedIndex < 0 || listBoxFrames.SelectedIndex >= _project.Frames.Count)
+            return;
+
+        int index = listBoxFrames.SelectedIndex;
+        _project.Frames[index].IsKept = !_project.Frames[index].IsKept;
+
+        RefreshFrameList();
+        listBoxFrames.SelectedIndex = index;
+
+        if (_currentIndex == index)
+            UpdateFrameInfo();
+    }
+
+    private void listBoxFrames_DrawItem(object? sender, DrawItemEventArgs e)
+    {
+        e.DrawBackground();
+
+        if (e.Index < 0 || e.Index >= _project.Frames.Count)
+            return;
+
+        FrameInfo frame = _project.Frames[e.Index];
+        Color textColor = GetFrameListColor(frame);
+        Color badgeColor = textColor;
+
+        if ((e.State & DrawItemState.Selected) == DrawItemState.Selected)
+        {
+            using var selectionBrush = new SolidBrush(SystemColors.Highlight);
+            e.Graphics.FillRectangle(selectionBrush, e.Bounds);
+            textColor = Color.White;
+            badgeColor = Color.White;
+        }
+
+        string fileName = Path.GetFileName(frame.SourcePath);
+        string status = frame.IsKept
+            ? frame.AnchorPoint.HasValue ? "POINT" : "A PLACER"
+            : "ECARTEE";
+
+        Rectangle textBounds = new(e.Bounds.X + 6, e.Bounds.Y + 1, Math.Max(0, e.Bounds.Width - 118), e.Bounds.Height - 2);
+        Rectangle badgeBounds = new(e.Bounds.Right - 106, e.Bounds.Y + 1, 100, e.Bounds.Height - 2);
+
+        TextRenderer.DrawText(
+            e.Graphics,
+            fileName,
+            e.Font,
+            textBounds,
+            textColor,
+            TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
+
+        TextRenderer.DrawText(
+            e.Graphics,
+            status,
+            e.Font,
+            badgeBounds,
+            badgeColor,
+            TextFormatFlags.Right | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
+
+        e.DrawFocusRectangle();
+    }
+
     private void pictureBoxFrame_MouseClick(object sender, MouseEventArgs e)
     {
         if (_currentIndex < 0 || pictureBoxFrame.Image is null)
@@ -319,26 +421,6 @@ public partial class MainForm : Form
         listBoxFrames.SelectedIndex = _currentIndex;
     }
 
-    private void btnCopyAnchorToAll_Click(object sender, EventArgs e)
-    {
-        if (_currentIndex < 0)
-            return;
-
-        var anchor = _project.Frames[_currentIndex].AnchorPoint;
-        if (!anchor.HasValue)
-        {
-            MessageBox.Show(this, "Aucun point fixe défini sur la frame courante.");
-            return;
-        }
-
-        foreach (var frame in _project.Frames)
-            frame.AnchorPoint = anchor;
-
-        UpdateFrameInfo();
-        RefreshFrameList();
-        listBoxFrames.SelectedIndex = _currentIndex;
-    }
-
     private async void btnRenderAndExportGif_Click(object sender, EventArgs e)
     {
         try
@@ -366,7 +448,10 @@ public partial class MainForm : Form
             lblStatus.Text = "Rendu des images alignées...";
             UseWaitCursor = true;
 
-            var rendered = await _alignmentService.RenderAlignedFramesAsync(_project, alignedDir);
+            var renderResult = await _alignmentService.RenderAlignedFramesAsync(_project, alignedDir);
+            var rendered = renderResult.FramePaths.ToList();
+            _project.OutputCrop = renderResult.IntersectionCrop;
+            SyncCropControls(renderResult.IntersectionCrop);
 
             if (rendered.Count == 0)
             {
@@ -374,20 +459,85 @@ public partial class MainForm : Form
                 return;
             }
 
-            using var sfd = new SaveFileDialog
+            List<string> alignedBase = renderResult.FramePaths.ToList();
+            Rectangle additionalCrop = new(0, 0, renderResult.IntersectionCrop.Width, renderResult.IntersectionCrop.Height);
+
+            while (true)
             {
-                Filter = "GIF animé|*.gif",
-                FileName = "animation.gif"
-            };
+                PreviewForm.PreviewExportChoice exportChoice;
 
-            if (sfd.ShowDialog(this) != DialogResult.OK)
-                return;
+                lblStatus.Text = "Aperçu du crop automatique...";
+                using (var previewImage = LoadPreviewImage(renderResult.PreviewPath))
+                using (var previewForm = new PreviewForm(previewImage, renderResult.IntersectionCrop, additionalCrop))
+                {
+                    if (previewForm.ShowDialog(this) != DialogResult.OK)
+                    {
+                        lblStatus.Text = "Prévisualisation fermée.";
+                        return;
+                    }
 
-            lblStatus.Text = "Création du GIF...";
-            _gifExportService.ExportGif(rendered, sfd.FileName, _project.GifDelayCs);
+                    exportChoice = previewForm.ExportChoice;
+                    additionalCrop = previewForm.SelectedCrop;
+                }
 
-            lblStatus.Text = "GIF exporté.";
-            MessageBox.Show(this, "Export terminé.");
+                if (additionalCrop.Width <= 0 || additionalCrop.Height <= 0)
+                {
+                    MessageBox.Show(this, "Le rectangle de crop additionnel est vide.");
+                    continue;
+                }
+
+                List<string> exportFrames = alignedBase;
+                if (additionalCrop.X != 0 || additionalCrop.Y != 0 ||
+                    additionalCrop.Width != renderResult.IntersectionCrop.Width ||
+                    additionalCrop.Height != renderResult.IntersectionCrop.Height)
+                {
+                    lblStatus.Text = "Application du crop additionnel...";
+                    string finalDir = Path.Combine(_project.WorkingDirectory, "final");
+                    exportFrames = (await _alignmentService.ApplyAdditionalCropAsync(alignedBase, additionalCrop, finalDir)).ToList();
+                }
+
+                _project.OutputCrop = new Rectangle(
+                    renderResult.IntersectionCrop.X + additionalCrop.X,
+                    renderResult.IntersectionCrop.Y + additionalCrop.Y,
+                    additionalCrop.Width,
+                    additionalCrop.Height);
+                SyncCropControls(_project.OutputCrop);
+
+                if (exportChoice == PreviewForm.PreviewExportChoice.Mpeg)
+                {
+                    using var sfd = new SaveFileDialog
+                    {
+                        Filter = "Vidéo MP4 (H.264)|*.mp4",
+                        FileName = "animation.mp4"
+                    };
+
+                    if (sfd.ShowDialog(this) != DialogResult.OK)
+                        continue;
+
+                    lblStatus.Text = "Création de la vidéo MP4...";
+                    await _ffmpegService.ExportMpegAsync(exportFrames, sfd.FileName, _project.GifDelayCs);
+
+                    lblStatus.Text = "Vidéo exportée.";
+                    MessageBox.Show(this, "Export vidéo terminé.");
+                }
+                else
+                {
+                    using var sfd = new SaveFileDialog
+                    {
+                        Filter = "GIF animé|*.gif",
+                        FileName = "animation.gif"
+                    };
+
+                    if (sfd.ShowDialog(this) != DialogResult.OK)
+                        continue;
+
+                    lblStatus.Text = "Création du GIF...";
+                    _gifExportService.ExportGif(exportFrames, sfd.FileName, _project.GifDelayCs);
+
+                    lblStatus.Text = "GIF exporté.";
+                    MessageBox.Show(this, "Export GIF terminé.");
+                }
+            }
         }
         catch (Exception ex)
         {
@@ -441,14 +591,26 @@ public partial class MainForm : Form
             ClearCurrentImage();
 
         numGifDelay.Value = Math.Clamp(_project.GifDelayCs, numGifDelay.Minimum, numGifDelay.Maximum);
-        numCropX.Value = ClampToRange(_project.OutputCrop.X, numCropX.Minimum, numCropX.Maximum);
-        numCropY.Value = ClampToRange(_project.OutputCrop.Y, numCropY.Minimum, numCropY.Maximum);
-        numCropW.Value = ClampToRange(_project.OutputCrop.Width, numCropW.Minimum, numCropW.Maximum);
-        numCropH.Value = ClampToRange(_project.OutputCrop.Height, numCropH.Minimum, numCropH.Maximum);
+        SyncCropControls(_project.OutputCrop);
         numTargetX.Value = ClampToRange((decimal)_project.TargetAnchor.X, numTargetX.Minimum, numTargetX.Maximum);
         numTargetY.Value = ClampToRange((decimal)_project.TargetAnchor.Y, numTargetY.Minimum, numTargetY.Maximum);
 
         lblStatus.Text = "Projet chargé.";
+    }
+
+    private void SyncCropControls(Rectangle crop)
+    {
+        numCropX.Value = ClampToRange(crop.X, numCropX.Minimum, numCropX.Maximum);
+        numCropY.Value = ClampToRange(crop.Y, numCropY.Minimum, numCropY.Maximum);
+        numCropW.Value = ClampToRange(crop.Width, numCropW.Minimum, numCropW.Maximum);
+        numCropH.Value = ClampToRange(crop.Height, numCropH.Minimum, numCropH.Maximum);
+    }
+
+    private static Bitmap LoadPreviewImage(string previewPath)
+    {
+        using var fs = File.OpenRead(previewPath);
+        using var image = new Bitmap(fs);
+        return new Bitmap(image);
     }
 
     private static decimal ClampToRange(decimal value, decimal minimum, decimal maximum)
@@ -456,5 +618,16 @@ public partial class MainForm : Form
         if (value < minimum) return minimum;
         if (value > maximum) return maximum;
         return value;
+    }
+
+    private static Color GetFrameListColor(FrameInfo frame)
+    {
+        if (!frame.IsKept)
+            return Color.Firebrick;
+
+        if (frame.AnchorPoint.HasValue)
+            return Color.ForestGreen;
+
+        return Color.Black;
     }
 }

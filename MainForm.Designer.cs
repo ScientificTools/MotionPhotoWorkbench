@@ -12,7 +12,6 @@ partial class MainForm
     private Button btnPrev = null!;
     private Button btnNext = null!;
     private Button btnToggleKeep = null!;
-    private Button btnCopyAnchorToAll = null!;
     private Button btnRenderAndExportGif = null!;
     private Button btnSaveProject = null!;
     private Button btnLoadProject = null!;
@@ -22,6 +21,9 @@ partial class MainForm
 
     private Label lblStatus = null!;
     private Label lblFrameInfo = null!;
+    private Label lblFrameLegend = null!;
+    private ContextMenuStrip contextMenuFrames = null!;
+    private ToolStripMenuItem menuToggleKeep = null!;
 
     private NumericUpDown numGifDelay = null!;
     private NumericUpDown numCropX = null!;
@@ -63,7 +65,6 @@ partial class MainForm
         btnPrev = new Button();
         btnNext = new Button();
         btnToggleKeep = new Button();
-        btnCopyAnchorToAll = new Button();
         btnRenderAndExportGif = new Button();
         btnSaveProject = new Button();
         btnLoadProject = new Button();
@@ -73,6 +74,9 @@ partial class MainForm
 
         lblStatus = new Label();
         lblFrameInfo = new Label();
+        lblFrameLegend = new Label();
+        contextMenuFrames = new ContextMenuStrip(components);
+        menuToggleKeep = new ToolStripMenuItem();
 
         numGifDelay = new NumericUpDown();
         numCropX = new NumericUpDown();
@@ -165,13 +169,35 @@ partial class MainForm
         splitMain.Panel2MinSize = 100;
         rootLayout.Controls.Add(splitMain, 0, 1);
 
+        var framesPanel = new TableLayoutPanel();
+        framesPanel.ColumnCount = 1;
+        framesPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        framesPanel.RowCount = 2;
+        framesPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+        framesPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        framesPanel.Dock = DockStyle.Fill;
+
         listBoxFrames.Dock = DockStyle.Fill;
         listBoxFrames.HorizontalScrollbar = true;
         listBoxFrames.IntegralHeight = false;
         listBoxFrames.Font = new Font("Segoe UI", 10F, FontStyle.Regular, GraphicsUnit.Point);
         listBoxFrames.SelectedIndexChanged += listBoxFrames_SelectedIndexChanged;
+        listBoxFrames.MouseDown += listBoxFrames_MouseDown;
+        listBoxFrames.KeyDown += listBoxFrames_KeyDown;
         splitMain.Panel1.Padding = new Padding(8);
-        splitMain.Panel1.Controls.Add(listBoxFrames);
+        splitMain.Panel1.Controls.Add(framesPanel);
+        framesPanel.Controls.Add(listBoxFrames, 0, 0);
+
+        lblFrameLegend.Dock = DockStyle.Fill;
+        lblFrameLegend.AutoSize = true;
+        lblFrameLegend.Padding = new Padding(4, 8, 4, 0);
+        lblFrameLegend.Text = "Noir: point a placer   |   Vert: point place   |   Rouge: frame ecartee";
+        framesPanel.Controls.Add(lblFrameLegend, 0, 1);
+
+        menuToggleKeep.Text = "Ecarter / Reintegrer";
+        menuToggleKeep.Click += menuToggleKeep_Click;
+        contextMenuFrames.Items.Add(menuToggleKeep);
+        listBoxFrames.ContextMenuStrip = contextMenuFrames;
 
         splitRight.Dock = DockStyle.Fill;
         splitRight.FixedPanel = FixedPanel.Panel2;
@@ -213,9 +239,9 @@ partial class MainForm
         settingsLayout.RowCount = 5;
         settingsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         settingsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        settingsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        settingsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         settingsLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+        settingsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        settingsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         settingsLayout.Dock = DockStyle.Fill;
         settingsLayout.AutoScroll = true;
         settingsLayout.Padding = new Padding(0, 0, 0, 8);
@@ -224,6 +250,7 @@ partial class MainForm
         groupNavigation.Text = "Navigation";
         groupNavigation.Dock = DockStyle.Top;
         groupNavigation.AutoSize = true;
+        groupNavigation.AutoSizeMode = AutoSizeMode.GrowAndShrink;
         groupNavigation.Padding = new Padding(10);
         settingsLayout.Controls.Add(groupNavigation, 0, 0);
 
@@ -235,28 +262,29 @@ partial class MainForm
         navLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
         navLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
         navLayout.Dock = DockStyle.Fill;
+        navLayout.AutoSize = true;
+        navLayout.AutoSizeMode = AutoSizeMode.GrowAndShrink;
         navLayout.Padding = new Padding(4);
         navLayout.Margin = new Padding(0);
         groupNavigation.Controls.Add(navLayout);
 
-        ConfigureNavButton(btnPrev, "◀ Précédent");
-        ConfigureNavButton(btnNext, "Suivant ▶");
+        ConfigureNavButton(btnPrev, "<");
+        ConfigureNavButton(btnNext, ">");
         ConfigureNavButton(btnToggleKeep, "Garder / écarter");
-        ConfigureNavButton(btnCopyAnchorToAll, "Copier point à toutes");
 
         btnPrev.Click += btnPrev_Click;
         btnNext.Click += btnNext_Click;
         btnToggleKeep.Click += btnToggleKeep_Click;
-        btnCopyAnchorToAll.Click += btnCopyAnchorToAll_Click;
 
         navLayout.Controls.Add(btnPrev, 0, 0);
         navLayout.Controls.Add(btnNext, 1, 0);
         navLayout.Controls.Add(btnToggleKeep, 0, 1);
-        navLayout.Controls.Add(btnCopyAnchorToAll, 1, 1);
+        navLayout.SetColumnSpan(btnToggleKeep, 2);
 
         groupGif.Text = "GIF";
         groupGif.Dock = DockStyle.Top;
         groupGif.AutoSize = true;
+        groupGif.AutoSizeMode = AutoSizeMode.GrowAndShrink;
         groupGif.Padding = new Padding(10);
         settingsLayout.Controls.Add(groupGif, 0, 1);
 
@@ -269,6 +297,7 @@ partial class MainForm
         gifLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         gifLayout.Dock = DockStyle.Top;
         gifLayout.AutoSize = true;
+        gifLayout.AutoSizeMode = AutoSizeMode.GrowAndShrink;
         groupGif.Controls.Add(gifLayout);
 
         gifLayout.Controls.Add(new Label { Text = "Delay (centièmes)", Anchor = AnchorStyles.Left, AutoSize = true }, 0, 0);
@@ -278,7 +307,7 @@ partial class MainForm
         numGifDelay.Value = 5;
         gifLayout.Controls.Add(numGifDelay, 1, 0);
 
-        btnRenderAndExportGif.Text = "Rendu + Export GIF";
+        btnRenderAndExportGif.Text = "Tester le réalignement";
         btnRenderAndExportGif.Dock = DockStyle.Fill;
         btnRenderAndExportGif.Height = 34;
         btnRenderAndExportGif.Click += btnRenderAndExportGif_Click;
@@ -289,7 +318,7 @@ partial class MainForm
         groupCrop.Dock = DockStyle.Top;
         groupCrop.AutoSize = true;
         groupCrop.Padding = new Padding(10);
-        settingsLayout.Controls.Add(groupCrop, 0, 2);
+        settingsLayout.Controls.Add(groupCrop, 0, 3);
 
         var cropLayout = new TableLayoutPanel();
         cropLayout.ColumnCount = 2;
@@ -315,7 +344,7 @@ partial class MainForm
         groupTarget.Dock = DockStyle.Top;
         groupTarget.AutoSize = true;
         groupTarget.Padding = new Padding(10);
-        settingsLayout.Controls.Add(groupTarget, 0, 3);
+        settingsLayout.Controls.Add(groupTarget, 0, 4);
 
         var targetLayout = new TableLayoutPanel();
         targetLayout.ColumnCount = 2;
@@ -335,7 +364,7 @@ partial class MainForm
         AddLabeledNumeric(targetLayout, "Target Y", numTargetY, 1);
 
         var filler = new Panel { Dock = DockStyle.Fill };
-        settingsLayout.Controls.Add(filler, 0, 4);
+        settingsLayout.Controls.Add(filler, 0, 2);
 
         statusLayout.ColumnCount = 2;
         statusLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
