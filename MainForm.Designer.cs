@@ -11,6 +11,8 @@ partial class MainForm
     private Button btnOpenInput = null!;
     private Button btnPrev = null!;
     private Button btnNext = null!;
+    private Button btnZoomIn = null!;
+    private Button btnZoomOut = null!;
     private Button btnToggleKeep = null!;
     private Button btnRenderAndExportGif = null!;
     private Button btnSaveProject = null!;
@@ -64,6 +66,8 @@ partial class MainForm
         btnOpenInput = new Button();
         btnPrev = new Button();
         btnNext = new Button();
+        btnZoomIn = new Button();
+        btnZoomOut = new Button();
         btnToggleKeep = new Button();
         btnRenderAndExportGif = new Button();
         btnSaveProject = new Button();
@@ -228,7 +232,11 @@ partial class MainForm
         pictureBoxFrame.Dock = DockStyle.Fill;
         pictureBoxFrame.BorderStyle = BorderStyle.FixedSingle;
         pictureBoxFrame.BackColor = Color.Black;
-        pictureBoxFrame.MouseClick += pictureBoxFrame_MouseClick;
+        pictureBoxFrame.TabStop = true;
+        pictureBoxFrame.MouseDown += pictureBoxFrame_MouseDown;
+        pictureBoxFrame.MouseMove += pictureBoxFrame_MouseMove;
+        pictureBoxFrame.MouseUp += pictureBoxFrame_MouseUp;
+        pictureBoxFrame.MouseWheel += pictureBoxFrame_MouseWheel;
         pictureBoxFrame.Paint += pictureBoxFrame_Paint;
         imagePanel.Controls.Add(pictureBoxFrame, 0, 1);
 
@@ -258,9 +266,10 @@ partial class MainForm
         navLayout.ColumnCount = 2;
         navLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
         navLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
-        navLayout.RowCount = 2;
-        navLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
-        navLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
+        navLayout.RowCount = 3;
+        navLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 33.33F));
+        navLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 33.33F));
+        navLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 33.33F));
         navLayout.Dock = DockStyle.Fill;
         navLayout.AutoSize = true;
         navLayout.AutoSizeMode = AutoSizeMode.GrowAndShrink;
@@ -270,15 +279,21 @@ partial class MainForm
 
         ConfigureNavButton(btnPrev, "<");
         ConfigureNavButton(btnNext, ">");
+        ConfigureNavButton(btnZoomIn, "Zoom +");
+        ConfigureNavButton(btnZoomOut, "Zoom -");
         ConfigureNavButton(btnToggleKeep, "Garder / écarter");
 
         btnPrev.Click += btnPrev_Click;
         btnNext.Click += btnNext_Click;
+        btnZoomIn.Click += btnZoomIn_Click;
+        btnZoomOut.Click += btnZoomOut_Click;
         btnToggleKeep.Click += btnToggleKeep_Click;
 
         navLayout.Controls.Add(btnPrev, 0, 0);
         navLayout.Controls.Add(btnNext, 1, 0);
-        navLayout.Controls.Add(btnToggleKeep, 0, 1);
+        navLayout.Controls.Add(btnZoomIn, 0, 1);
+        navLayout.Controls.Add(btnZoomOut, 1, 1);
+        navLayout.Controls.Add(btnToggleKeep, 0, 2);
         navLayout.SetColumnSpan(btnToggleKeep, 2);
 
         groupGif.Text = "GIF";
@@ -384,7 +399,7 @@ partial class MainForm
             Dock = DockStyle.Fill,
             TextAlign = ContentAlignment.MiddleRight,
             AutoEllipsis = true,
-            Text = "Clique sur l'image pour définir le point fixe"
+            Text = "Clic gauche = point fixe | molette = zoom | glisser = déplacer"
         };
         statusLayout.Controls.Add(helpLabel, 1, 0);
 
