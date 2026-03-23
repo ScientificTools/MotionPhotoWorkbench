@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.IO;
 using System.Linq;
 using System.Windows.Forms;
@@ -14,7 +15,6 @@ using ISImage = SixLabors.ImageSharp.Image;
 using ISImageRgba32 = SixLabors.ImageSharp.Image<SixLabors.ImageSharp.PixelFormats.Rgba32>;
 using SDImage = System.Drawing.Image;
 using SDPointF = System.Drawing.PointF;
-using SDSize = System.Drawing.Size;
 
 namespace MotionPhotoWorkbench;
 
@@ -30,6 +30,17 @@ public partial class MainForm : Form
     private int _currentIndex = -1;
     private SDImage? _currentBitmap;
     private bool _isRefreshingFrameList;
+    private float _imageZoom = 1f;
+    private SDPointF _imagePanOffset = SDPointF.Empty;
+    private bool _isImagePointerDown;
+    private bool _isImagePanning;
+    private Point _imagePointerDownLocation;
+    private SDPointF _imagePanOffsetAtPointerDown;
+
+    private const float MinImageZoom = 1f;
+    private const float MaxImageZoom = 16f;
+    private const float ImageZoomFactor = 1.25f;
+    private const int ImagePanThreshold = 4;
 
     public MainForm()
     {
@@ -43,7 +54,8 @@ public partial class MainForm : Form
         _persistenceService = new ProjectPersistenceService();
 
         WindowState = FormWindowState.Maximized;
-        pictureBoxFrame.SizeMode = PictureBoxSizeMode.Zoom;
+        pictureBoxFrame.SizeMode = PictureBoxSizeMode.Normal;
+        pictureBoxFrame.MouseEnter += (_, _) => pictureBoxFrame.Focus();
         listBoxFrames.DrawMode = DrawMode.OwnerDrawFixed;
         listBoxFrames.ItemHeight = Math.Max(listBoxFrames.Font.Height + 10, 28);
         listBoxFrames.DrawItem += listBoxFrames_DrawItem;
@@ -57,6 +69,7 @@ public partial class MainForm : Form
         btnRenderAndExportGif.AutoSize = false;
         btnRenderAndExportGif.MinimumSize = new Size(0, 48);
         btnRenderAndExportGif.Height = 48;
+        UpdateZoomButtons();
         RefreshFrameList();
         UpdateFrameInfo();
     }
@@ -76,6 +89,8 @@ public partial class MainForm : Form
         if (WindowState != FormWindowState.Minimized)
         {
             BeginInvoke(new Action(ApplyResponsiveLayout));
+            ClampImagePanOffset();
+            pictureBoxFrame.Invalidate();
         }
     }
 
@@ -254,7 +269,7 @@ public partial class MainForm : Form
         ClearCurrentImage();
 
         _currentBitmap = LoadDisplayBitmap(_project.Frames[index].SourcePath);
-        pictureBoxFrame.Image = (SDImage)_currentBitmap.Clone();
+        ResetImageViewport();
 
         listBoxFrames.SelectedIndex = index;
         UpdateFrameInfo();
@@ -263,10 +278,9 @@ public partial class MainForm : Form
 
     private void ClearCurrentImage()
     {
-        pictureBoxFrame.Image?.Dispose();
-        pictureBoxFrame.Image = null;
         _currentBitmap?.Dispose();
         _currentBitmap = null;
+        ResetImageViewport();
         _currentIndex = _project.Frames.Count == 0 ? -1 : _currentIndex;
     }
 
@@ -382,15 +396,67 @@ public partial class MainForm : Form
         e.DrawFocusRectangle();
     }
 
-    private void pictureBoxFrame_MouseClick(object sender, MouseEventArgs e)
+    private void pictureBoxFrame_MouseDown(object? sender, MouseEventArgs e)
     {
-        if (_currentIndex < 0 || pictureBoxFrame.Image is null)
+        if (_currentIndex < 0 || _currentBitmap is null)
+            return;
+
+        pictureBoxFrame.Focus();
+
+        if (e.Button != MouseButtons.Left)
+            return;
+
+        _isImagePointerDown = true;
+        _isImagePanning = false;
+        _imagePointerDownLocation = e.Location;
+        _imagePanOffsetAtPointerDown = _imagePanOffset;
+        pictureBoxFrame.Capture = true;
+    }
+
+    private void pictureBoxFrame_MouseMove(object? sender, MouseEventArgs e)
+    {
+        if (!_isImagePointerDown || _currentBitmap is null)
+            return;
+
+        if (!_isImagePanning)
+        {
+            int dx = e.Location.X - _imagePointerDownLocation.X;
+            int dy = e.Location.Y - _imagePointerDownLocation.Y;
+            if (Math.Abs(dx) < ImagePanThreshold && Math.Abs(dy) < ImagePanThreshold)
+                return;
+
+            _isImagePanning = true;
+            pictureBoxFrame.Cursor = Cursors.SizeAll;
+        }
+
+        _imagePanOffset = new SDPointF(
+            _imagePanOffsetAtPointerDown.X + (e.Location.X - _imagePointerDownLocation.X),
+            _imagePanOffsetAtPointerDown.Y + (e.Location.Y - _imagePointerDownLocation.Y));
+
+        ClampImagePanOffset();
+        pictureBoxFrame.Invalidate();
+    }
+
+    private void pictureBoxFrame_MouseUp(object? sender, MouseEventArgs e)
+    {
+        if (!_isImagePointerDown)
+            return;
+
+        bool wasPanning = _isImagePanning;
+        _isImagePointerDown = false;
+        _isImagePanning = false;
+        pictureBoxFrame.Capture = false;
+        pictureBoxFrame.Cursor = Cursors.Default;
+
+        if (e.Button != MouseButtons.Left || wasPanning || _currentBitmap is null)
             return;
 
         var imgPoint = ImageViewerMath.ClientToImage(
             e.Location,
             pictureBoxFrame.ClientSize,
-            pictureBoxFrame.Image.Size);
+            _currentBitmap.Size,
+            _imageZoom,
+            _imagePanOffset);
 
         if (imgPoint is null)
             return;
@@ -402,42 +468,60 @@ public partial class MainForm : Form
         listBoxFrames.SelectedIndex = _currentIndex;
     }
 
+    private void pictureBoxFrame_MouseWheel(object? sender, MouseEventArgs e)
+    {
+        if (_currentBitmap is null)
+            return;
+
+        float factor = e.Delta > 0 ? ImageZoomFactor : 1f / ImageZoomFactor;
+        SetImageZoom(_imageZoom * factor, e.Location);
+    }
+
     private void pictureBoxFrame_Paint(object sender, PaintEventArgs e)
     {
-        if (_currentIndex < 0 || pictureBoxFrame.Image is null)
+        e.Graphics.Clear(Color.Black);
+
+        if (_currentIndex < 0 || _currentBitmap is null)
             return;
+
+        e.Graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
+        e.Graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
+        e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+
+        RectangleF imageBounds = ImageViewerMath.GetImageDisplayBounds(
+            pictureBoxFrame.ClientSize,
+            _currentBitmap.Size,
+            _imageZoom,
+            _imagePanOffset);
+
+        if (imageBounds.IsEmpty || imageBounds.Width <= 0 || imageBounds.Height <= 0)
+            return;
+
+        e.Graphics.DrawImage(_currentBitmap, imageBounds);
 
         var frame = _project.Frames[_currentIndex];
         if (!frame.AnchorPoint.HasValue)
             return;
 
-        var clientPoint = ImageToClient(pictureBoxFrame.ClientSize, pictureBoxFrame.Image.Size, frame.AnchorPoint.Value);
+        var clientPoint = ImageViewerMath.ImageToClient(
+            pictureBoxFrame.ClientSize,
+            _currentBitmap.Size,
+            frame.AnchorPoint.Value,
+            _imageZoom,
+            _imagePanOffset);
+
         if (clientPoint is null)
             return;
 
-        using var pen = new Pen(Color.Red, 2);
-        e.Graphics.DrawLine(pen, clientPoint.Value.X - 8, clientPoint.Value.Y, clientPoint.Value.X + 8, clientPoint.Value.Y);
-        e.Graphics.DrawLine(pen, clientPoint.Value.X, clientPoint.Value.Y - 8, clientPoint.Value.X, clientPoint.Value.Y + 8);
-    }
+        float crossHalfSize = Math.Clamp(8f + ((_imageZoom - 1f) * 3f), 8f, 28f);
+        float penWidth = Math.Clamp(2f + ((_imageZoom - 1f) * 0.35f), 2f, 5f);
 
-    private static SDPointF? ImageToClient(SDSize clientSize, SDSize imageSize, SDPointF imagePoint)
-    {
-        if (imageSize.Width <= 0 || imageSize.Height <= 0)
-            return null;
-
-        float ratioX = (float)clientSize.Width / imageSize.Width;
-        float ratioY = (float)clientSize.Height / imageSize.Height;
-        float scale = Math.Min(ratioX, ratioY);
-
-        float displayedWidth = imageSize.Width * scale;
-        float displayedHeight = imageSize.Height * scale;
-
-        float offsetX = (clientSize.Width - displayedWidth) / 2f;
-        float offsetY = (clientSize.Height - displayedHeight) / 2f;
-
-        return new SDPointF(
-            offsetX + imagePoint.X * scale,
-            offsetY + imagePoint.Y * scale);
+        using var outlinePen = new Pen(Color.White, penWidth + 2f);
+        using var pen = new Pen(Color.Red, penWidth);
+        e.Graphics.DrawLine(outlinePen, clientPoint.Value.X - crossHalfSize, clientPoint.Value.Y, clientPoint.Value.X + crossHalfSize, clientPoint.Value.Y);
+        e.Graphics.DrawLine(outlinePen, clientPoint.Value.X, clientPoint.Value.Y - crossHalfSize, clientPoint.Value.X, clientPoint.Value.Y + crossHalfSize);
+        e.Graphics.DrawLine(pen, clientPoint.Value.X - crossHalfSize, clientPoint.Value.Y, clientPoint.Value.X + crossHalfSize, clientPoint.Value.Y);
+        e.Graphics.DrawLine(pen, clientPoint.Value.X, clientPoint.Value.Y - crossHalfSize, clientPoint.Value.X, clientPoint.Value.Y + crossHalfSize);
     }
 
     private void btnPrev_Click(object sender, EventArgs e)
@@ -450,6 +534,22 @@ public partial class MainForm : Form
     {
         if (_currentIndex < _project.Frames.Count - 1)
             LoadFrame(_currentIndex + 1);
+    }
+
+    private void btnZoomIn_Click(object? sender, EventArgs e)
+    {
+        if (_currentBitmap is null)
+            return;
+
+        SetImageZoom(_imageZoom * ImageZoomFactor, GetViewportCenter());
+    }
+
+    private void btnZoomOut_Click(object? sender, EventArgs e)
+    {
+        if (_currentBitmap is null)
+            return;
+
+        SetImageZoom(_imageZoom / ImageZoomFactor, GetViewportCenter());
     }
 
     private void btnToggleKeep_Click(object sender, EventArgs e)
@@ -802,5 +902,90 @@ public partial class MainForm : Form
             return Color.ForestGreen;
 
         return Color.Black;
+    }
+
+    private void ResetImageViewport()
+    {
+        _imageZoom = MinImageZoom;
+        _imagePanOffset = SDPointF.Empty;
+        _isImagePointerDown = false;
+        _isImagePanning = false;
+        pictureBoxFrame.Cursor = Cursors.Default;
+        UpdateZoomButtons();
+    }
+
+    private void SetImageZoom(float requestedZoom, Point focusPoint)
+    {
+        if (_currentBitmap is null)
+            return;
+
+        float clampedZoom = Math.Clamp(requestedZoom, MinImageZoom, MaxImageZoom);
+        if (Math.Abs(clampedZoom - _imageZoom) < 0.0001f)
+        {
+            UpdateZoomButtons();
+            return;
+        }
+
+        SDPointF? focusImagePoint = ImageViewerMath.ClientToImage(
+            focusPoint,
+            pictureBoxFrame.ClientSize,
+            _currentBitmap.Size,
+            _imageZoom,
+            _imagePanOffset);
+
+        _imageZoom = clampedZoom;
+
+        if (focusImagePoint.HasValue)
+        {
+            RectangleF centeredBounds = ImageViewerMath.GetImageDisplayBounds(
+                pictureBoxFrame.ClientSize,
+                _currentBitmap.Size,
+                _imageZoom,
+                SDPointF.Empty);
+
+            float desiredLeft = focusPoint.X - ((focusImagePoint.Value.X / _currentBitmap.Width) * centeredBounds.Width);
+            float desiredTop = focusPoint.Y - ((focusImagePoint.Value.Y / _currentBitmap.Height) * centeredBounds.Height);
+
+            _imagePanOffset = new SDPointF(
+                desiredLeft - centeredBounds.Left,
+                desiredTop - centeredBounds.Top);
+        }
+
+        ClampImagePanOffset();
+        UpdateZoomButtons();
+        pictureBoxFrame.Invalidate();
+    }
+
+    private void ClampImagePanOffset()
+    {
+        if (_currentBitmap is null)
+        {
+            _imagePanOffset = SDPointF.Empty;
+            return;
+        }
+
+        RectangleF centeredBounds = ImageViewerMath.GetImageDisplayBounds(
+            pictureBoxFrame.ClientSize,
+            _currentBitmap.Size,
+            _imageZoom,
+            SDPointF.Empty);
+
+        float maxPanX = Math.Max(0f, (centeredBounds.Width - pictureBoxFrame.ClientSize.Width) / 2f);
+        float maxPanY = Math.Max(0f, (centeredBounds.Height - pictureBoxFrame.ClientSize.Height) / 2f);
+
+        _imagePanOffset = new SDPointF(
+            Math.Clamp(_imagePanOffset.X, -maxPanX, maxPanX),
+            Math.Clamp(_imagePanOffset.Y, -maxPanY, maxPanY));
+    }
+
+    private void UpdateZoomButtons()
+    {
+        btnZoomIn.Enabled = _currentBitmap is not null && _imageZoom < MaxImageZoom - 0.0001f;
+        btnZoomOut.Enabled = _currentBitmap is not null && _imageZoom > MinImageZoom + 0.0001f;
+    }
+
+    private Point GetViewportCenter()
+    {
+        return new Point(pictureBoxFrame.ClientSize.Width / 2, pictureBoxFrame.ClientSize.Height / 2);
     }
 }
