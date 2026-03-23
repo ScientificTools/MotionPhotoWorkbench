@@ -44,9 +44,9 @@ public sealed class PreviewForm : Form
     private readonly PictureBox _pictureBox;
     private readonly Button _btnExportGif;
     private readonly Button _btnExportMpeg;
-    private readonly Button _btnClose;
     private readonly Label _lblSelection;
     private readonly ComboBox _cmbAspectRatio;
+    private readonly NumericUpDown _numFps;
     private readonly Rectangle _imageBounds;
     private readonly List<CropRatioOption> _ratioOptions;
 
@@ -61,7 +61,7 @@ public sealed class PreviewForm : Form
     private const int HandleHitSize = 12;
     private const int DragThreshold = 3;
 
-    public PreviewForm(Image previewImage, Rectangle cropArea, Rectangle? initialSelection = null)
+    public PreviewForm(Image previewImage, Rectangle cropArea, int initialFps, Rectangle? initialSelection = null)
     {
         Text = "Apercu du crop automatique";
         StartPosition = FormStartPosition.CenterParent;
@@ -118,22 +118,35 @@ public sealed class PreviewForm : Form
             WrapContents = true,
             Margin = new Padding(0, 6, 0, 0)
         };
-        ratioPanel.Controls.Add(new Label
+        var lblAspectRatio = new Label
         {
             AutoSize = true,
             Text = "Proportion du crop :",
-            Margin = new Padding(0, 8, 8, 0)
-        });
+            Margin = new Padding(0, 8, 8, 0),
+            Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point)
+        };
+        ratioPanel.Controls.Add(lblAspectRatio);
 
         _cmbAspectRatio = new ComboBox
         {
             DropDownStyle = ComboBoxStyle.DropDownList,
-            Width = 180,
-            Margin = new Padding(0, 2, 0, 0)
+            Width = 230,
+            Margin = new Padding(0, 2, 0, 0),
+            Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point),
+            BackColor = Color.Gainsboro
         };
         _cmbAspectRatio.Items.AddRange(_ratioOptions.ToArray());
         _cmbAspectRatio.SelectedIndexChanged += CmbAspectRatio_SelectedIndexChanged;
         ratioPanel.Controls.Add(_cmbAspectRatio);
+
+        _numFps = new NumericUpDown
+        {
+            Minimum = 1,
+            Maximum = 120,
+            Value = Math.Clamp(initialFps, 1, 120),
+            Width = 70,
+            Margin = new Padding(0, 2, 0, 0)
+        };
         root.Controls.Add(ratioPanel, 0, 1);
 
         _lblSelection = new Label
@@ -161,43 +174,48 @@ public sealed class PreviewForm : Form
         var buttons = new FlowLayoutPanel
         {
             Dock = DockStyle.Fill,
-            FlowDirection = FlowDirection.RightToLeft,
+            FlowDirection = FlowDirection.LeftToRight,
             AutoSize = true,
             WrapContents = false
         };
         root.Controls.Add(buttons, 0, 4);
 
+        var fpsLabel = new Label
+        {
+            AutoSize = true,
+            Text = "FPS export :",
+            Margin = new Padding(0, 8, 8, 0),
+            Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point)
+        };
+
         _btnExportGif = new Button
         {
             Text = "Exporter en GIF",
-            AutoSize = true
+            AutoSize = true,
+            Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point),
+            BackColor = Color.Gainsboro,
+            FlatStyle = FlatStyle.Flat,
+            UseVisualStyleBackColor = false
         };
         _btnExportGif.Click += (_, _) => SelectExportChoice(PreviewExportChoice.Gif);
 
         _btnExportMpeg = new Button
         {
             Text = "Exporter en MPEG",
-            AutoSize = true
+            AutoSize = true,
+            Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point),
+            BackColor = Color.Gainsboro,
+            FlatStyle = FlatStyle.Flat,
+            UseVisualStyleBackColor = false
         };
         _btnExportMpeg.Click += (_, _) => SelectExportChoice(PreviewExportChoice.Mpeg);
 
-        _btnClose = new Button
-        {
-            Text = "Fermer",
-            AutoSize = true
-        };
-        _btnClose.Click += (_, _) =>
-        {
-            DialogResult = DialogResult.Cancel;
-            Close();
-        };
-
-        buttons.Controls.Add(_btnExportGif);
+        buttons.Controls.Add(fpsLabel);
+        buttons.Controls.Add(_numFps);
         buttons.Controls.Add(_btnExportMpeg);
-        buttons.Controls.Add(_btnClose);
+        buttons.Controls.Add(_btnExportGif);
 
         AcceptButton = _btnExportGif;
-        CancelButton = _btnClose;
 
         _selectionInImage = initialSelection.HasValue
             ? Rectangle.Intersect(EnsureMinimumSelection(initialSelection.Value), _imageBounds)
@@ -211,6 +229,7 @@ public sealed class PreviewForm : Form
 
     public Rectangle SelectedCrop => _selectionInImage;
     public PreviewExportChoice ExportChoice { get; private set; }
+    public int ExportFps => (int)_numFps.Value;
 
     private float? SelectedAspectRatio => (_cmbAspectRatio.SelectedItem as CropRatioOption)?.AspectRatio;
 

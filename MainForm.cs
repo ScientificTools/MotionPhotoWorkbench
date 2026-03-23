@@ -96,9 +96,9 @@ public partial class MainForm : Form
 
     private void ApplyResponsiveLayout()
     {
-        SetSafeSplitterDistance(splitMain, 260);
+        SetSafeSplitterDistance(splitMain, 360);
 
-        int desiredRightToolsWidth = 360;
+        int desiredRightToolsWidth = 320;
         int desiredDistance = splitRight.Width - desiredRightToolsWidth;
         SetSafeSplitterDistance(splitRight, desiredDistance);
     }
@@ -145,7 +145,7 @@ public partial class MainForm : Form
             WorkingDirectory = workDir,
             TargetAnchor = new SDPointF(150, 150),
             OutputCrop = new Rectangle(0, 0, 300, 300),
-            GifDelayCs = (int)numGifDelay.Value
+            VideoFps = 20
         };
 
         lblStatus.Text = "Préparation de l'extraction...";
@@ -374,8 +374,8 @@ public partial class MainForm : Form
             ? frame.AnchorPoint.HasValue ? "POINT" : "A PLACER"
             : "ECARTEE";
 
-        Rectangle textBounds = new(e.Bounds.X + 6, e.Bounds.Y + 1, Math.Max(0, e.Bounds.Width - 118), e.Bounds.Height - 2);
-        Rectangle badgeBounds = new(e.Bounds.Right - 106, e.Bounds.Y + 1, 100, e.Bounds.Height - 2);
+        Rectangle textBounds = new(e.Bounds.X + 6, e.Bounds.Y + 1, Math.Max(0, e.Bounds.Width - 142), e.Bounds.Height - 2);
+        Rectangle badgeBounds = new(e.Bounds.Right - 130, e.Bounds.Y + 1, 124, e.Bounds.Height - 2);
 
         TextRenderer.DrawText(
             e.Graphics,
@@ -573,7 +573,6 @@ public partial class MainForm : Form
                 return;
             }
 
-            _project.GifDelayCs = (int)numGifDelay.Value;
             _project.OutputCrop = new Rectangle(
                 (int)numCropX.Value,
                 (int)numCropY.Value,
@@ -610,7 +609,7 @@ public partial class MainForm : Form
 
                 lblStatus.Text = "Aperçu du crop automatique...";
                 using (var previewImage = LoadPreviewImage(renderResult.PreviewPath))
-                using (var previewForm = new PreviewForm(previewImage, renderResult.IntersectionCrop, additionalCrop))
+                using (var previewForm = new PreviewForm(previewImage, renderResult.IntersectionCrop, _project.VideoFps, additionalCrop))
                 {
                     if (previewForm.ShowDialog(this) != DialogResult.OK)
                     {
@@ -620,6 +619,7 @@ public partial class MainForm : Form
 
                     exportChoice = previewForm.ExportChoice;
                     additionalCrop = previewForm.SelectedCrop;
+                    _project.VideoFps = previewForm.ExportFps;
                 }
 
                 if (additionalCrop.Width <= 0 || additionalCrop.Height <= 0)
@@ -657,7 +657,7 @@ public partial class MainForm : Form
                         continue;
 
                     lblStatus.Text = "Création de la vidéo MP4...";
-                    await _ffmpegService.ExportMpegAsync(exportFrames, sfd.FileName, _project.GifDelayCs);
+                    await _ffmpegService.ExportMpegAsync(exportFrames, sfd.FileName, _project.VideoFps, _project.WorkingDirectory);
 
                     lblStatus.Text = "Vidéo exportée.";
                     MessageBox.Show(this, "Export vidéo terminé.");
@@ -674,7 +674,7 @@ public partial class MainForm : Form
                         continue;
 
                     lblStatus.Text = "Création du GIF...";
-                    _gifExportService.ExportGif(exportFrames, sfd.FileName, _project.GifDelayCs);
+                    _gifExportService.ExportGif(exportFrames, sfd.FileName, ConvertFpsToGifDelayCs(_project.VideoFps));
 
                     lblStatus.Text = "GIF exporté.";
                     MessageBox.Show(this, "Export GIF terminé.");
@@ -750,7 +750,6 @@ public partial class MainForm : Form
         else
             ClearCurrentImage();
 
-        numGifDelay.Value = Math.Clamp(_project.GifDelayCs, numGifDelay.Minimum, numGifDelay.Maximum);
         SyncCropControls(_project.OutputCrop);
         numTargetX.Value = ClampToRange((decimal)_project.TargetAnchor.X, numTargetX.Minimum, numTargetX.Maximum);
         numTargetY.Value = ClampToRange((decimal)_project.TargetAnchor.Y, numTargetY.Minimum, numTargetY.Maximum);
@@ -891,6 +890,12 @@ public partial class MainForm : Form
         if (value < minimum) return minimum;
         if (value > maximum) return maximum;
         return value;
+    }
+
+    private static int ConvertFpsToGifDelayCs(int fps)
+    {
+        int safeFps = Math.Max(1, fps);
+        return Math.Max(1, (int)Math.Round(100d / safeFps, MidpointRounding.AwayFromZero));
     }
 
     private static Color GetFrameListColor(FrameInfo frame)

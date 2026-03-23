@@ -15,6 +15,8 @@ public sealed class ProjectState
     // Rectangle de sortie final
     public Rectangle OutputCrop { get; set; } = new(0, 0, 300, 300);
 
-    // Délai GIF en centièmes de seconde
-    public int GifDelayCs { get; set; } = 5;
+    // Cadence d'export video/GIF
+    public int VideoFps { get; set; } = 20;
 }
+
+

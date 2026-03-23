@@ -27,7 +27,6 @@ partial class MainForm
     private ContextMenuStrip contextMenuFrames = null!;
     private ToolStripMenuItem menuToggleKeep = null!;
 
-    private NumericUpDown numGifDelay = null!;
     private NumericUpDown numCropX = null!;
     private NumericUpDown numCropY = null!;
     private NumericUpDown numCropW = null!;
@@ -82,7 +81,6 @@ partial class MainForm
         contextMenuFrames = new ContextMenuStrip(components);
         menuToggleKeep = new ToolStripMenuItem();
 
-        numGifDelay = new NumericUpDown();
         numCropX = new NumericUpDown();
         numCropY = new NumericUpDown();
         numCropW = new NumericUpDown();
@@ -104,7 +102,6 @@ partial class MainForm
         groupTarget = new GroupBox();
 
         ((System.ComponentModel.ISupportInitialize)pictureBoxFrame).BeginInit();
-        ((System.ComponentModel.ISupportInitialize)numGifDelay).BeginInit();
         ((System.ComponentModel.ISupportInitialize)numCropX).BeginInit();
         ((System.ComponentModel.ISupportInitialize)numCropY).BeginInit();
         ((System.ComponentModel.ISupportInitialize)numCropW).BeginInit();
@@ -296,7 +293,7 @@ partial class MainForm
         navLayout.Controls.Add(btnToggleKeep, 0, 2);
         navLayout.SetColumnSpan(btnToggleKeep, 2);
 
-        groupGif.Text = "GIF";
+        groupGif.Text = "Export";
         groupGif.Dock = DockStyle.Top;
         groupGif.AutoSize = true;
         groupGif.AutoSizeMode = AutoSizeMode.GrowAndShrink;
@@ -304,30 +301,23 @@ partial class MainForm
         settingsLayout.Controls.Add(groupGif, 0, 1);
 
         var gifLayout = new TableLayoutPanel();
-        gifLayout.ColumnCount = 2;
-        gifLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 55F));
-        gifLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 45F));
-        gifLayout.RowCount = 2;
-        gifLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        gifLayout.ColumnCount = 1;
+        gifLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        gifLayout.RowCount = 1;
         gifLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         gifLayout.Dock = DockStyle.Top;
         gifLayout.AutoSize = true;
         gifLayout.AutoSizeMode = AutoSizeMode.GrowAndShrink;
         groupGif.Controls.Add(gifLayout);
-
-        gifLayout.Controls.Add(new Label { Text = "Delay (centièmes)", Anchor = AnchorStyles.Left, AutoSize = true }, 0, 0);
-        numGifDelay.Dock = DockStyle.Fill;
-        numGifDelay.Minimum = 1;
-        numGifDelay.Maximum = 500;
-        numGifDelay.Value = 5;
-        gifLayout.Controls.Add(numGifDelay, 1, 0);
-
-        btnRenderAndExportGif.Text = "Tester le réalignement";
+        btnRenderAndExportGif.Text = "Apercu / export";
         btnRenderAndExportGif.Dock = DockStyle.Fill;
         btnRenderAndExportGif.Height = 34;
+        btnRenderAndExportGif.Font = new Font("Segoe UI", 10F, FontStyle.Bold, GraphicsUnit.Point);
+        btnRenderAndExportGif.BackColor = Color.Gainsboro;
+        btnRenderAndExportGif.FlatStyle = FlatStyle.Flat;
+        btnRenderAndExportGif.UseVisualStyleBackColor = false;
         btnRenderAndExportGif.Click += btnRenderAndExportGif_Click;
-        gifLayout.SetColumnSpan(btnRenderAndExportGif, 2);
-        gifLayout.Controls.Add(btnRenderAndExportGif, 0, 1);
+        gifLayout.Controls.Add(btnRenderAndExportGif, 0, 0);
 
         groupCrop.Text = "Crop";
         groupCrop.Dock = DockStyle.Top;
@@ -404,7 +394,6 @@ partial class MainForm
         statusLayout.Controls.Add(helpLabel, 1, 0);
 
         ((System.ComponentModel.ISupportInitialize)pictureBoxFrame).EndInit();
-        ((System.ComponentModel.ISupportInitialize)numGifDelay).EndInit();
         ((System.ComponentModel.ISupportInitialize)numCropX).EndInit();
         ((System.ComponentModel.ISupportInitialize)numCropY).EndInit();
         ((System.ComponentModel.ISupportInitialize)numCropW).EndInit();
@@ -454,3 +443,6 @@ partial class MainForm
         button.UseVisualStyleBackColor = true;
     }
 }
+
+
+

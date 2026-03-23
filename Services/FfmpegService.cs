@@ -6,6 +6,8 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 
+using ISImage = SixLabors.ImageSharp.Image;
+
 namespace MotionPhotoWorkbench.Services;
 
 public sealed class FfmpegService
@@ -67,7 +69,8 @@ public sealed class FfmpegService
     public async Task ExportMpegAsync(
         IReadOnlyList<string> framePaths,
         string outputFile,
-        int delayCs,
+        int fps,
+        string? workDirectory = null,
         CancellationToken cancellationToken = default)
     {
         if (!IsAvailable())
@@ -81,6 +84,7 @@ public sealed class FfmpegService
 
         string sequenceDir = Path.Combine(Path.GetTempPath(), $"MotionPhotoWorkbench_{Guid.NewGuid():N}");
         Directory.CreateDirectory(sequenceDir);
+        string? logFilePath = PrepareFfmpegLogPath(workDirectory, "ffmpeg_export_mp4");
 
         try
         {
@@ -91,14 +95,16 @@ public sealed class FfmpegService
                 File.Copy(framePaths[i], destination, true);
             }
 
-            double fps = Math.Max(1d, 100d / Math.Max(1, delayCs));
-            string fpsText = fps.ToString("0.###", CultureInfo.InvariantCulture);
+            string fpsText = Math.Max(1, fps).ToString(CultureInfo.InvariantCulture);
             string inputPattern = Path.Combine(sequenceDir, "frame_%04d.png");
+            string videoFilter = BuildEvenDimensionsVideoFilter(framePaths[0]);
+            string arguments =
+                $"-nostdin -y -framerate {fpsText} -i \"{inputPattern}\" {videoFilter}-c:v libx264 -preset medium -crf 18 -pix_fmt yuv420p -movflags +faststart \"{outputFile}\"";
 
             var psi = new ProcessStartInfo
             {
                 FileName = FfmpegPath,
-                Arguments = $"-nostdin -y -framerate {fpsText} -i \"{inputPattern}\" -c:v libx264 -preset medium -crf 18 -pix_fmt yuv420p -movflags +faststart \"{outputFile}\"",
+                Arguments = arguments,
                 RedirectStandardError = true,
                 RedirectStandardOutput = true,
                 UseShellExecute = false,
@@ -114,11 +120,12 @@ public sealed class FfmpegService
             await process.WaitForExitAsync(cancellationToken);
             string stdout = await stdoutTask;
             string stderr = await stderrTask;
+            WriteFfmpegLog(logFilePath, psi.FileName, psi.Arguments, process.ExitCode, stdout, stderr);
 
             if (process.ExitCode != 0)
             {
                 throw new InvalidOperationException(
-                    $"FFmpeg a echoue.{Environment.NewLine}{stdout}{Environment.NewLine}{stderr}");
+                    $"FFmpeg a echoue.{Environment.NewLine}Journal : {logFilePath ?? "(non disponible)"}{Environment.NewLine}{stdout}{Environment.NewLine}{stderr}");
             }
         }
         finally
@@ -126,5 +133,55 @@ public sealed class FfmpegService
             if (Directory.Exists(sequenceDir))
                 Directory.Delete(sequenceDir, true);
         }
+    }
+
+    private static string BuildEvenDimensionsVideoFilter(string firstFramePath)
+    {
+        var info = ISImage.Identify(firstFramePath);
+        if (info is null)
+            return string.Empty;
+
+        int targetWidth = info.Width - (info.Width % 2);
+        int targetHeight = info.Height - (info.Height % 2);
+
+        if (targetWidth <= 0 || targetHeight <= 0)
+            throw new InvalidOperationException($"Dimensions invalides pour l'export video : {info.Width}x{info.Height}.");
+
+        if (targetWidth == info.Width && targetHeight == info.Height)
+            return string.Empty;
+
+        return $"-vf \"crop={targetWidth}:{targetHeight}:0:0\" ";
+    }
+
+    private static string? PrepareFfmpegLogPath(string? workDirectory, string operationName)
+    {
+        if (string.IsNullOrWhiteSpace(workDirectory))
+            return null;
+
+        Directory.CreateDirectory(workDirectory);
+        string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss", CultureInfo.InvariantCulture);
+        return Path.Combine(workDirectory, $"{operationName}_{timestamp}.log");
+    }
+
+    private static void WriteFfmpegLog(
+        string? logFilePath,
+        string executablePath,
+        string arguments,
+        int exitCode,
+        string stdout,
+        string stderr)
+    {
+        if (string.IsNullOrWhiteSpace(logFilePath))
+            return;
+
+        string content =
+            $"Timestamp: {DateTime.Now:O}{Environment.NewLine}" +
+            $"Executable: {executablePath}{Environment.NewLine}" +
+            $"Arguments: {arguments}{Environment.NewLine}" +
+            $"ExitCode: {exitCode}{Environment.NewLine}" +
+            $"{Environment.NewLine}--- STDOUT ---{Environment.NewLine}{stdout}" +
+            $"{Environment.NewLine}--- STDERR ---{Environment.NewLine}{stderr}";
+
+        File.WriteAllText(logFilePath, content);
     }
 }
