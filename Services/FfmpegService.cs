@@ -73,6 +73,69 @@ public sealed class FfmpegService
         string? workDirectory = null,
         CancellationToken cancellationToken = default)
     {
+        string fpsText = Math.Max(1, fps).ToString(CultureInfo.InvariantCulture);
+        await ExportVideoFromFramesAsync(
+            framePaths,
+            outputFile,
+            fpsText,
+            workDirectory,
+            "ffmpeg_export_mp4",
+            true,
+            (inputPattern, outputPath, filter) =>
+                $"-nostdin -y -framerate {fpsText} -i \"{inputPattern}\" {filter}-c:v libx264 -preset medium -crf 18 -pix_fmt yuv420p -movflags +faststart \"{outputPath}\"",
+            cancellationToken);
+    }
+
+    public async Task ExportWebMAsync(
+        IReadOnlyList<string> framePaths,
+        string outputFile,
+        int fps,
+        string? workDirectory = null,
+        CancellationToken cancellationToken = default)
+    {
+        string fpsText = Math.Max(1, fps).ToString(CultureInfo.InvariantCulture);
+        await ExportVideoFromFramesAsync(
+            framePaths,
+            outputFile,
+            fpsText,
+            workDirectory,
+            "ffmpeg_export_webm",
+            true,
+            (inputPattern, outputPath, filter) =>
+                $"-nostdin -y -framerate {fpsText} -i \"{inputPattern}\" {filter}-c:v libvpx-vp9 -b:v 0 -crf 32 -pix_fmt yuv420p -row-mt 1 \"{outputPath}\"",
+            cancellationToken);
+    }
+
+    public async Task ExportAnimatedWebpAsync(
+        IReadOnlyList<string> framePaths,
+        string outputFile,
+        int fps,
+        string? workDirectory = null,
+        CancellationToken cancellationToken = default)
+    {
+        string fpsText = Math.Max(1, fps).ToString(CultureInfo.InvariantCulture);
+        await ExportVideoFromFramesAsync(
+            framePaths,
+            outputFile,
+            fpsText,
+            workDirectory,
+            "ffmpeg_export_webp",
+            false,
+            (inputPattern, outputPath, filter) =>
+                $"-nostdin -y -framerate {fpsText} -i \"{inputPattern}\" {filter}-c:v libwebp_anim -loop 0 -quality 80 -compression_level 4 -pix_fmt yuva420p \"{outputPath}\"",
+            cancellationToken);
+    }
+
+    private async Task ExportVideoFromFramesAsync(
+        IReadOnlyList<string> framePaths,
+        string outputFile,
+        string fpsText,
+        string? workDirectory,
+        string logOperationName,
+        bool needsEvenDimensions,
+        Func<string, string, string, string> buildArguments,
+        CancellationToken cancellationToken)
+    {
         if (!IsAvailable())
         {
             throw new FileNotFoundException(
@@ -84,7 +147,7 @@ public sealed class FfmpegService
 
         string sequenceDir = Path.Combine(Path.GetTempPath(), $"MotionPhotoWorkbench_{Guid.NewGuid():N}");
         Directory.CreateDirectory(sequenceDir);
-        string? logFilePath = PrepareFfmpegLogPath(workDirectory, "ffmpeg_export_mp4");
+        string? logFilePath = PrepareFfmpegLogPath(workDirectory, logOperationName);
 
         try
         {
@@ -95,11 +158,11 @@ public sealed class FfmpegService
                 File.Copy(framePaths[i], destination, true);
             }
 
-            string fpsText = Math.Max(1, fps).ToString(CultureInfo.InvariantCulture);
             string inputPattern = Path.Combine(sequenceDir, "frame_%04d.png");
-            string videoFilter = BuildEvenDimensionsVideoFilter(framePaths[0]);
-            string arguments =
-                $"-nostdin -y -framerate {fpsText} -i \"{inputPattern}\" {videoFilter}-c:v libx264 -preset medium -crf 18 -pix_fmt yuv420p -movflags +faststart \"{outputFile}\"";
+            string videoFilter = needsEvenDimensions
+                ? BuildEvenDimensionsVideoFilter(framePaths[0])
+                : string.Empty;
+            string arguments = buildArguments(inputPattern, outputFile, videoFilter);
 
             var psi = new ProcessStartInfo
             {

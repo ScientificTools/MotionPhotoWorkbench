@@ -24,7 +24,9 @@ public sealed class PreviewForm : Form
     {
         None,
         Gif,
-        Mpeg
+        Mpeg,
+        WebM,
+        WebP
     }
 
     private sealed class CropRatioOption
@@ -44,6 +46,8 @@ public sealed class PreviewForm : Form
     private readonly PictureBox _pictureBox;
     private readonly Button _btnExportGif;
     private readonly Button _btnExportMpeg;
+    private readonly Button _btnExportWebM;
+    private readonly Button _btnExportWebP;
     private readonly Label _lblSelection;
     private readonly ComboBox _cmbAspectRatio;
     private readonly NumericUpDown _numFps;
@@ -176,7 +180,7 @@ public sealed class PreviewForm : Form
             Dock = DockStyle.Fill,
             FlowDirection = FlowDirection.LeftToRight,
             AutoSize = true,
-            WrapContents = false
+            WrapContents = true
         };
         root.Controls.Add(buttons, 0, 4);
 
@@ -210,9 +214,33 @@ public sealed class PreviewForm : Form
         };
         _btnExportMpeg.Click += (_, _) => SelectExportChoice(PreviewExportChoice.Mpeg);
 
+        _btnExportWebM = new Button
+        {
+            Text = "Exporter en WebM",
+            AutoSize = true,
+            Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point),
+            BackColor = Color.Gainsboro,
+            FlatStyle = FlatStyle.Flat,
+            UseVisualStyleBackColor = false
+        };
+        _btnExportWebM.Click += (_, _) => SelectExportChoice(PreviewExportChoice.WebM);
+
+        _btnExportWebP = new Button
+        {
+            Text = "Exporter en WebP",
+            AutoSize = true,
+            Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point),
+            BackColor = Color.Gainsboro,
+            FlatStyle = FlatStyle.Flat,
+            UseVisualStyleBackColor = false
+        };
+        _btnExportWebP.Click += (_, _) => SelectExportChoice(PreviewExportChoice.WebP);
+
         buttons.Controls.Add(fpsLabel);
         buttons.Controls.Add(_numFps);
         buttons.Controls.Add(_btnExportMpeg);
+        buttons.Controls.Add(_btnExportWebM);
+        buttons.Controls.Add(_btnExportWebP);
         buttons.Controls.Add(_btnExportGif);
 
         AcceptButton = _btnExportGif;

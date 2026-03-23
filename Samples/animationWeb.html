@@ -1,0 +1,297 @@
+<html>
+    <head>
+<style>
+    video.responsive {
+        max-width: 100%;
+        height: auto;
+        display: block;
+    }
+    .anim {
+      max-width: 100%;
+      height: auto;
+      display: block;
+    }
+        body {
+      font-family: "Segoe UI", sans-serif;
+      margin: 24px;
+      background: #f4f4f4;
+      color: #222;
+    }
+
+    .wrap {
+      max-width: 900px;
+      margin: 0 auto;
+      background: white;
+      border: 1px solid #d0d0d0;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+    }
+
+    h1 {
+      margin-top: 0;
+      font-size: 1.4rem;
+    }
+
+    video, canvas {
+      width: 100%;
+      max-width: 100%;
+      display: block;
+      background: black;
+      border-radius: 8px;
+    }
+
+    canvas {
+      margin-top: 16px;
+      border: 1px solid #ccc;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 16px;
+      align-items: center;
+    }
+
+    button, select, input[type="range"] {
+      font: inherit;
+    }
+
+    button {
+      padding: 8px 14px;
+      border: 1px solid #aaa;
+      background: #e6e6e6;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #dcdcdc;
+    }
+
+    label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 600;
+    }
+
+    .status {
+      margin-top: 14px;
+      font-size: 0.95rem;
+      color: #444;
+    }
+
+    .capture-link {
+      display: inline-block;
+      margin-top: 12px;
+    }
+</style>
+    </head>
+    <body>
+        <table width="100%"">
+            <tr>
+               
+                <td>
+                     GIF : 14 597 Ko
+                    <br/>
+                    <img src="animation.gif">
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    MPEG : 1617 Ko
+                    <br/>
+                    <video class="responsive" autoplay loop muted playsinline>
+                    <source src="animation.mp4" type="video/mp4">
+                    </video>
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    WEBP : 2935 Ko
+                    <br/>
+                    <img class="anim" src="animation.webp" alt="Animation">
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    WEBM : 589 Ko
+                    <br/>
+                    <img class="anim" src="animation.webp" alt="Animation">
+                </td>
+            </tr>
+            <TR>
+                <td>
+                      <div class="wrap">
+    Lecteur WEBM fallback MPEG : 
+    <BR/>
+
+    <video id="video" playsinline muted preload="metadata">
+      <source src="animation.webm" type="video/webm">
+      <source src="animation.mp4" type="video/mp4">
+      Votre navigateur ne supporte pas la vidéo HTML5.
+    </video>
+
+    <div class="controls">
+      <button id="playBtn">Play</button>
+      <button id="pauseBtn">Pause</button>
+      <button id="stopBtn">Stop</button>
+      <button id="prevFrameBtn">-1 frame</button>
+      <button id="nextFrameBtn">+1 frame</button>
+      <button id="captureBtn">Capturer l'image</button>
+
+      <label>
+        <input type="checkbox" id="loopChk" checked>
+        Boucle
+      </label>
+
+      <label for="speedSel">Vitesse</label>
+      <select id="speedSel">
+        <option value="0.25">0.25x</option>
+        <option value="0.5">0.5x</option>
+        <option value="0.75">0.75x</option>
+        <option value="1" selected>1x</option>
+        <option value="1.25">1.25x</option>
+        <option value="1.5">1.5x</option>
+        <option value="2">2x</option>
+      </select>
+
+      <label for="fpsInput">FPS</label>
+      <input id="fpsInput" type="range" min="1" max="60" value="20">
+      <span id="fpsValue">20</span>
+    </div>
+
+    <div class="status" id="status">
+      Prêt.
+    </div>
+
+    <a id="downloadLink" class="capture-link" download="capture.png" style="display:none">
+      Télécharger l'image capturée
+    </a>
+
+    <canvas id="canvas"></canvas>
+  </div>
+
+                </td>
+            </TR>
+        </table>
+
+
+        <script>
+    const video = document.getElementById("video");
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+
+    const playBtn = document.getElementById("playBtn");
+    const pauseBtn = document.getElementById("pauseBtn");
+    const stopBtn = document.getElementById("stopBtn");
+    const prevFrameBtn = document.getElementById("prevFrameBtn");
+    const nextFrameBtn = document.getElementById("nextFrameBtn");
+    const captureBtn = document.getElementById("captureBtn");
+    const loopChk = document.getElementById("loopChk");
+    const speedSel = document.getElementById("speedSel");
+    const fpsInput = document.getElementById("fpsInput");
+    const fpsValue = document.getElementById("fpsValue");
+    const downloadLink = document.getElementById("downloadLink");
+    const status = document.getElementById("status");
+
+    function setStatus(text) {
+      status.textContent = text;
+    }
+
+    function updateLoop() {
+      video.loop = loopChk.checked;
+    }
+
+    function updateSpeed() {
+      video.playbackRate = parseFloat(speedSel.value);
+      setStatus(`Lecture à ${video.playbackRate}x`);
+    }
+
+    function getFrameDuration() {
+      const fps = parseInt(fpsInput.value, 10);
+      return 1 / Math.max(1, fps);
+    }
+
+    function captureCurrentFrame() {
+      if (!video.videoWidth || !video.videoHeight) {
+        setStatus("Aucune image disponible à capturer.");
+        return;
+      }
+
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      const url = canvas.toDataURL("image/png");
+      downloadLink.href = url;
+      downloadLink.style.display = "inline-block";
+      downloadLink.textContent = "Télécharger l'image capturée";
+
+      setStatus(`Image capturée à ${video.currentTime.toFixed(3)} s`);
+    }
+
+    function stopVideo() {
+      video.pause();
+      video.currentTime = 0;
+      setStatus("Vidéo arrêtée.");
+    }
+
+    function stepFrame(direction) {
+      video.pause();
+      const step = getFrameDuration() * direction;
+      const duration = Number.isFinite(video.duration) ? video.duration : 0;
+      let target = video.currentTime + step;
+
+      if (duration > 0) {
+        target = Math.max(0, Math.min(duration, target));
+      } else {
+        target = Math.max(0, target);
+      }
+
+      video.currentTime = target;
+      setStatus(`Position : ${target.toFixed(3)} s`);
+    }
+
+    playBtn.addEventListener("click", async () => {
+      try {
+        await video.play();
+        setStatus("Lecture en cours.");
+      } catch {
+        setStatus("Lecture bloquée par le navigateur.");
+      }
+    });
+
+    pauseBtn.addEventListener("click", () => {
+      video.pause();
+      setStatus("Lecture en pause.");
+    });
+
+    stopBtn.addEventListener("click", stopVideo);
+    prevFrameBtn.addEventListener("click", () => stepFrame(-1));
+    nextFrameBtn.addEventListener("click", () => stepFrame(1));
+    captureBtn.addEventListener("click", captureCurrentFrame);
+
+    loopChk.addEventListener("change", updateLoop);
+    speedSel.addEventListener("change", updateSpeed);
+
+    fpsInput.addEventListener("input", () => {
+      fpsValue.textContent = fpsInput.value;
+    });
+
+    video.addEventListener("pause", () => {
+      captureCurrentFrame();
+    });
+
+    video.addEventListener("loadedmetadata", () => {
+      setStatus(`Vidéo chargée: ${video.videoWidth}x${video.videoHeight}, durée ${video.duration.toFixed(2)} s`);
+    });
+
+    updateLoop();
+    updateSpeed();
+    fpsValue.textContent = fpsInput.value;
+  </script>
+    </body>
+</html>

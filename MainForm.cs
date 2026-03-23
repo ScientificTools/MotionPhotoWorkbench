@@ -662,6 +662,40 @@ public partial class MainForm : Form
                     lblStatus.Text = "Vidéo exportée.";
                     MessageBox.Show(this, "Export vidéo terminé.");
                 }
+                else if (exportChoice == PreviewForm.PreviewExportChoice.WebM)
+                {
+                    using var sfd = new SaveFileDialog
+                    {
+                        Filter = "VidÃ©o WebM (VP9)|*.webm",
+                        FileName = "animation.webm"
+                    };
+
+                    if (sfd.ShowDialog(this) != DialogResult.OK)
+                        continue;
+
+                    lblStatus.Text = "CrÃ©ation de la vidÃ©o WebM...";
+                    await _ffmpegService.ExportWebMAsync(exportFrames, sfd.FileName, _project.VideoFps, _project.WorkingDirectory);
+
+                    lblStatus.Text = "VidÃ©o WebM exportÃ©e.";
+                    MessageBox.Show(this, "Export WebM terminÃ©.");
+                }
+                else if (exportChoice == PreviewForm.PreviewExportChoice.WebP)
+                {
+                    using var sfd = new SaveFileDialog
+                    {
+                        Filter = "WebP animÃ©|*.webp",
+                        FileName = "animation.webp"
+                    };
+
+                    if (sfd.ShowDialog(this) != DialogResult.OK)
+                        continue;
+
+                    lblStatus.Text = "CrÃ©ation du WebP animÃ©...";
+                    await _ffmpegService.ExportAnimatedWebpAsync(exportFrames, sfd.FileName, _project.VideoFps, _project.WorkingDirectory);
+
+                    lblStatus.Text = "WebP animÃ© exportÃ©.";
+                    MessageBox.Show(this, "Export WebP terminÃ©.");
+                }
                 else
                 {
                     using var sfd = new SaveFileDialog
@@ -994,3 +1028,4 @@ public partial class MainForm : Form
         return new Point(pictureBoxFrame.ClientSize.Width / 2, pictureBoxFrame.ClientSize.Height / 2);
     }
 }
+
