@@ -4,6 +4,7 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Windows.Forms;
 
 using MotionPhotoWorkbench.Models;
@@ -23,8 +24,10 @@ public partial class MainForm : Form
     private readonly FfmpegService _ffmpegService;
     private readonly MotionPhotoService _motionPhotoService;
     private readonly ImageAlignmentService _alignmentService;
+    private readonly ImageAdjustmentService _imageAdjustmentService;
     private readonly GifExportService _gifExportService;
     private readonly ProjectPersistenceService _persistenceService;
+    private readonly System.Windows.Forms.Timer _adjustmentPreviewTimer;
 
     private ProjectState _project = new();
     private int _currentIndex = -1;
@@ -36,11 +39,16 @@ public partial class MainForm : Form
     private bool _isImagePanning;
     private Point _imagePointerDownLocation;
     private SDPointF _imagePanOffsetAtPointerDown;
+    private bool _isSyncingAdjustmentControls;
+    private bool _isAdjustingTrackBar;
+    private int _framePreviewRequestId;
+    private CancellationTokenSource? _framePreviewCts;
 
     private const float MinImageZoom = 1f;
     private const float MaxImageZoom = 16f;
     private const float ImageZoomFactor = 1.25f;
     private const int ImagePanThreshold = 4;
+    private const int AdjustmentDebounceMs = 120;
 
     public MainForm()
     {
@@ -50,8 +58,10 @@ public partial class MainForm : Form
         _ffmpegService = new FfmpegService(ffmpegPath);
         _motionPhotoService = new MotionPhotoService();
         _alignmentService = new ImageAlignmentService();
+        _imageAdjustmentService = new ImageAdjustmentService();
         _gifExportService = new GifExportService();
         _persistenceService = new ProjectPersistenceService();
+        _adjustmentPreviewTimer = new System.Windows.Forms.Timer { Interval = AdjustmentDebounceMs };
 
         WindowState = FormWindowState.Maximized;
         pictureBoxFrame.SizeMode = PictureBoxSizeMode.Normal;
@@ -69,6 +79,9 @@ public partial class MainForm : Form
         btnRenderAndExportGif.AutoSize = false;
         btnRenderAndExportGif.MinimumSize = new Size(0, 48);
         btnRenderAndExportGif.Height = 48;
+        _adjustmentPreviewTimer.Tick += AdjustmentPreviewTimer_Tick;
+        WireAdjustmentEvents();
+        SyncAdjustmentControlsFromProject();
         UpdateZoomButtons();
         RefreshFrameList();
         UpdateFrameInfo();
@@ -96,11 +109,16 @@ public partial class MainForm : Form
 
     private void ApplyResponsiveLayout()
     {
-        SetSafeSplitterDistance(splitMain, 360);
+        Rectangle workingArea = Screen.FromControl(this).WorkingArea;
+        int effectiveWidth = Math.Max(workingArea.Width, splitMain.ClientSize.Width);
 
-        int desiredRightToolsWidth = 320;
-        int desiredDistance = splitRight.Width - desiredRightToolsWidth;
-        SetSafeSplitterDistance(splitRight, desiredDistance);
+        int desiredFramesWidth = (int)Math.Round(effectiveWidth * 0.15f);
+        int desiredToolsWidth = (int)Math.Round(effectiveWidth * 0.25f);
+
+        SetSafeSplitterDistance(splitMain, desiredFramesWidth);
+
+        int desiredRightImageWidth = Math.Max(0, splitRight.ClientSize.Width - desiredToolsWidth);
+        SetSafeSplitterDistance(splitRight, desiredRightImageWidth);
     }
 
     private static void SetSafeSplitterDistance(SplitContainer splitContainer, int desired)
@@ -147,6 +165,8 @@ public partial class MainForm : Form
             OutputCrop = new Rectangle(0, 0, 300, 300),
             VideoFps = 20
         };
+        NormalizeProjectState(_project);
+        SyncAdjustmentControlsFromProject();
 
         lblStatus.Text = "Préparation de l'extraction...";
         UseWaitCursor = true;
@@ -268,16 +288,15 @@ public partial class MainForm : Form
 
         ClearCurrentImage();
 
-        _currentBitmap = LoadDisplayBitmap(_project.Frames[index].SourcePath);
-        ResetImageViewport();
-
         listBoxFrames.SelectedIndex = index;
         UpdateFrameInfo();
-        pictureBoxFrame.Invalidate();
+        QueueCurrentFrameRefresh(immediate: true);
     }
 
     private void ClearCurrentImage()
     {
+        _adjustmentPreviewTimer.Stop();
+        CancelPendingFramePreview();
         _currentBitmap?.Dispose();
         _currentBitmap = null;
         ResetImageViewport();
@@ -757,6 +776,7 @@ public partial class MainForm : Form
             MessageBox.Show(this, "Impossible de charger le projet.");
             return;
         }
+        NormalizeProjectState(loaded);
 
         UseWaitCursor = true;
         lblStatus.Text = "Chargement du projet...";
@@ -777,6 +797,7 @@ public partial class MainForm : Form
         }
 
         _project = loaded;
+        SyncAdjustmentControlsFromProject();
         RefreshFrameList();
 
         if (_project.Frames.Count > 0)
@@ -909,14 +930,285 @@ public partial class MainForm : Form
         return readable;
     }
 
-    private static Bitmap LoadDisplayBitmap(string sourcePath)
+    private Bitmap LoadDisplayBitmap(string sourcePath, ImageAdjustmentSettings adjustments)
     {
         using ISImageRgba32 image = ISImage.Load<Rgba32>(sourcePath);
+        _imageAdjustmentService.ApplyAdjustments(image, adjustments);
         using var ms = new MemoryStream();
         image.Save(ms, new PngEncoder());
         ms.Position = 0;
         using var bitmap = new Bitmap(ms);
         return new Bitmap(bitmap);
+    }
+
+    private void WireAdjustmentEvents()
+    {
+        trackBrightness.ValueChanged += AdjustmentTrackBar_ValueChanged;
+        trackContrast.ValueChanged += AdjustmentTrackBar_ValueChanged;
+        trackSaturation.ValueChanged += AdjustmentTrackBar_ValueChanged;
+        trackTemperature.ValueChanged += AdjustmentTrackBar_ValueChanged;
+        trackSharpness.ValueChanged += AdjustmentTrackBar_ValueChanged;
+        trackHighlights.ValueChanged += AdjustmentTrackBar_ValueChanged;
+        trackShadows.ValueChanged += AdjustmentTrackBar_ValueChanged;
+        trackBrightness.MouseDown += AdjustmentTrackBar_MouseDown;
+        trackContrast.MouseDown += AdjustmentTrackBar_MouseDown;
+        trackSaturation.MouseDown += AdjustmentTrackBar_MouseDown;
+        trackTemperature.MouseDown += AdjustmentTrackBar_MouseDown;
+        trackSharpness.MouseDown += AdjustmentTrackBar_MouseDown;
+        trackHighlights.MouseDown += AdjustmentTrackBar_MouseDown;
+        trackShadows.MouseDown += AdjustmentTrackBar_MouseDown;
+        trackBrightness.MouseUp += AdjustmentTrackBar_MouseUp;
+        trackContrast.MouseUp += AdjustmentTrackBar_MouseUp;
+        trackSaturation.MouseUp += AdjustmentTrackBar_MouseUp;
+        trackTemperature.MouseUp += AdjustmentTrackBar_MouseUp;
+        trackSharpness.MouseUp += AdjustmentTrackBar_MouseUp;
+        trackHighlights.MouseUp += AdjustmentTrackBar_MouseUp;
+        trackShadows.MouseUp += AdjustmentTrackBar_MouseUp;
+        trackBrightness.KeyUp += AdjustmentTrackBar_KeyUp;
+        trackContrast.KeyUp += AdjustmentTrackBar_KeyUp;
+        trackSaturation.KeyUp += AdjustmentTrackBar_KeyUp;
+        trackTemperature.KeyUp += AdjustmentTrackBar_KeyUp;
+        trackSharpness.KeyUp += AdjustmentTrackBar_KeyUp;
+        trackHighlights.KeyUp += AdjustmentTrackBar_KeyUp;
+        trackShadows.KeyUp += AdjustmentTrackBar_KeyUp;
+        WireAdjustmentValueTextBox(txtBrightnessValue, trackBrightness, allowNegative: true);
+        WireAdjustmentValueTextBox(txtContrastValue, trackContrast, allowNegative: true);
+        WireAdjustmentValueTextBox(txtSaturationValue, trackSaturation, allowNegative: true);
+        WireAdjustmentValueTextBox(txtTemperatureValue, trackTemperature, allowNegative: true);
+        WireAdjustmentValueTextBox(txtSharpnessValue, trackSharpness, allowNegative: false);
+        WireAdjustmentValueTextBox(txtHighlightsValue, trackHighlights, allowNegative: true);
+        WireAdjustmentValueTextBox(txtShadowsValue, trackShadows, allowNegative: true);
+        btnResetAdjustments.Click += btnResetAdjustments_Click;
+    }
+
+    private void AdjustmentTrackBar_ValueChanged(object? sender, EventArgs e)
+    {
+        UpdateAdjustmentValueLabels();
+
+        if (_isSyncingAdjustmentControls)
+            return;
+
+        _project.Adjustments = ReadAdjustmentsFromControls();
+
+        if (!_isAdjustingTrackBar)
+            QueueCurrentFrameRefresh(immediate: true);
+    }
+
+    private void btnResetAdjustments_Click(object? sender, EventArgs e)
+    {
+        _project.Adjustments = ImageAdjustmentSettings.Default;
+        SyncAdjustmentControlsFromProject();
+        QueueCurrentFrameRefresh(immediate: true);
+    }
+
+    private void AdjustmentTrackBar_MouseDown(object? sender, MouseEventArgs e)
+    {
+        if (e.Button == MouseButtons.Left)
+            _isAdjustingTrackBar = true;
+    }
+
+    private void AdjustmentTrackBar_MouseUp(object? sender, MouseEventArgs e)
+    {
+        if (e.Button != MouseButtons.Left)
+            return;
+
+        CommitTrackBarAdjustment();
+    }
+
+    private void AdjustmentTrackBar_KeyUp(object? sender, KeyEventArgs e)
+    {
+        CommitTrackBarAdjustment();
+    }
+
+    private void CommitTrackBarAdjustment()
+    {
+        _isAdjustingTrackBar = false;
+        _project.Adjustments = ReadAdjustmentsFromControls();
+        QueueCurrentFrameRefresh(immediate: true);
+    }
+
+    private void WireAdjustmentValueTextBox(TextBox textBox, TrackBar trackBar, bool allowNegative)
+    {
+        textBox.Tag = new AdjustmentTextBoxBinding(trackBar, allowNegative);
+        textBox.Leave += AdjustmentValueTextBox_Commit;
+        textBox.KeyDown += AdjustmentValueTextBox_KeyDown;
+    }
+
+    private void AdjustmentValueTextBox_KeyDown(object? sender, KeyEventArgs e)
+    {
+        if (sender is not TextBox textBox)
+            return;
+
+        if (e.KeyCode == Keys.Enter)
+        {
+            CommitAdjustmentValueTextBox(textBox);
+            e.Handled = true;
+            e.SuppressKeyPress = true;
+        }
+        else if (e.KeyCode == Keys.Escape)
+        {
+            UpdateAdjustmentValueLabels();
+            e.Handled = true;
+            e.SuppressKeyPress = true;
+        }
+    }
+
+    private void AdjustmentValueTextBox_Commit(object? sender, EventArgs e)
+    {
+        if (sender is TextBox textBox)
+            CommitAdjustmentValueTextBox(textBox);
+    }
+
+    private void CommitAdjustmentValueTextBox(TextBox textBox)
+    {
+        if (textBox.Tag is not AdjustmentTextBoxBinding binding)
+            return;
+
+        if (!TryParseAdjustmentText(textBox.Text, binding.AllowNegative, out int value))
+        {
+            UpdateAdjustmentValueLabels();
+            return;
+        }
+
+        value = Math.Clamp(value, binding.TrackBar.Minimum, binding.TrackBar.Maximum);
+        binding.TrackBar.Value = value;
+        _project.Adjustments = ReadAdjustmentsFromControls();
+        QueueCurrentFrameRefresh(immediate: true);
+    }
+
+    private void AdjustmentPreviewTimer_Tick(object? sender, EventArgs e)
+    {
+        _adjustmentPreviewTimer.Stop();
+        _ = RefreshCurrentFrameBitmapAsync();
+    }
+
+    private void SyncAdjustmentControlsFromProject()
+    {
+        NormalizeProjectState(_project);
+
+        _isSyncingAdjustmentControls = true;
+        try
+        {
+            trackBrightness.Value = FloatToSignedTrackValue(_project.Adjustments.Brightness);
+            trackContrast.Value = FloatToSignedTrackValue(_project.Adjustments.Contrast);
+            trackSaturation.Value = FloatToSignedTrackValue(_project.Adjustments.Saturation);
+            trackTemperature.Value = FloatToSignedTrackValue(_project.Adjustments.Temperature);
+            trackSharpness.Value = FloatToUnsignedTrackValue(_project.Adjustments.Sharpness);
+            trackHighlights.Value = FloatToSignedTrackValue(_project.Adjustments.Highlights);
+            trackShadows.Value = FloatToSignedTrackValue(_project.Adjustments.Shadows);
+            UpdateAdjustmentValueLabels();
+        }
+        finally
+        {
+            _isSyncingAdjustmentControls = false;
+        }
+    }
+
+    private ImageAdjustmentSettings ReadAdjustmentsFromControls()
+    {
+        return new ImageAdjustmentSettings
+        {
+            Brightness = SignedTrackValueToFloat(trackBrightness.Value),
+            Contrast = SignedTrackValueToFloat(trackContrast.Value),
+            Saturation = SignedTrackValueToFloat(trackSaturation.Value),
+            Temperature = SignedTrackValueToFloat(trackTemperature.Value),
+            Sharpness = UnsignedTrackValueToFloat(trackSharpness.Value),
+            Highlights = SignedTrackValueToFloat(trackHighlights.Value),
+            Shadows = SignedTrackValueToFloat(trackShadows.Value)
+        };
+    }
+
+    private void UpdateAdjustmentValueLabels()
+    {
+        txtBrightnessValue.Text = FormatSignedAdjustmentValue(trackBrightness.Value);
+        txtContrastValue.Text = FormatSignedAdjustmentValue(trackContrast.Value);
+        txtSaturationValue.Text = FormatSignedAdjustmentValue(trackSaturation.Value);
+        txtTemperatureValue.Text = FormatSignedAdjustmentValue(trackTemperature.Value);
+        txtSharpnessValue.Text = FormatUnsignedAdjustmentValue(trackSharpness.Value);
+        txtHighlightsValue.Text = FormatSignedAdjustmentValue(trackHighlights.Value);
+        txtShadowsValue.Text = FormatSignedAdjustmentValue(trackShadows.Value);
+    }
+
+    private void QueueCurrentFrameRefresh(bool immediate)
+    {
+        if (_currentIndex < 0 || _currentIndex >= _project.Frames.Count)
+            return;
+
+        if (immediate)
+        {
+            _adjustmentPreviewTimer.Stop();
+            _ = RefreshCurrentFrameBitmapAsync();
+            return;
+        }
+
+        _adjustmentPreviewTimer.Stop();
+        _adjustmentPreviewTimer.Start();
+    }
+
+    private async Task RefreshCurrentFrameBitmapAsync()
+    {
+        if (_currentIndex < 0 || _currentIndex >= _project.Frames.Count)
+            return;
+
+        int frameIndex = _currentIndex;
+        string sourcePath = _project.Frames[frameIndex].SourcePath;
+        NormalizeProjectState(_project);
+        ImageAdjustmentSettings adjustments = _project.Adjustments.Clone();
+        int requestId = Interlocked.Increment(ref _framePreviewRequestId);
+
+        var cts = new CancellationTokenSource();
+        CancellationTokenSource? previous = Interlocked.Exchange(ref _framePreviewCts, cts);
+        previous?.Cancel();
+        previous?.Dispose();
+
+        try
+        {
+            Bitmap bitmap = await Task.Run(() => LoadDisplayBitmap(sourcePath, adjustments), cts.Token);
+
+            if (cts.IsCancellationRequested ||
+                requestId != Volatile.Read(ref _framePreviewRequestId) ||
+                frameIndex != _currentIndex)
+            {
+                bitmap.Dispose();
+                return;
+            }
+
+            SDImage? previousBitmap = _currentBitmap;
+            _currentBitmap = bitmap;
+            previousBitmap?.Dispose();
+            pictureBoxFrame.Invalidate();
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception ex)
+        {
+            lblStatus.Text = "Erreur d'aperÃ§u image.";
+            MessageBox.Show(this, ex.Message, "Erreur", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+        finally
+        {
+            if (ReferenceEquals(_framePreviewCts, cts))
+                _framePreviewCts = null;
+
+            cts.Dispose();
+        }
+    }
+
+    private void CancelPendingFramePreview()
+    {
+        CancellationTokenSource? current = Interlocked.Exchange(ref _framePreviewCts, null);
+        if (current is null)
+            return;
+
+        current.Cancel();
+        current.Dispose();
+    }
+
+    private static void NormalizeProjectState(ProjectState project)
+    {
+        if (project.Adjustments is null)
+            project.Adjustments = ImageAdjustmentSettings.Default;
     }
 
     private static decimal ClampToRange(decimal value, decimal minimum, decimal maximum)
@@ -942,6 +1234,32 @@ public partial class MainForm : Form
 
         return Color.Black;
     }
+
+    private static int FloatToSignedTrackValue(float value) => Math.Clamp((int)MathF.Round(value * 100f), -100, 100);
+
+    private static int FloatToUnsignedTrackValue(float value) => Math.Clamp((int)MathF.Round(value * 100f), 0, 100);
+
+    private static float SignedTrackValueToFloat(int value) => value / 100f;
+
+    private static float UnsignedTrackValueToFloat(int value) => value / 100f;
+
+    private static string FormatSignedAdjustmentValue(int value) => value > 0 ? $"+{value}%" : $"{value}%";
+
+    private static string FormatUnsignedAdjustmentValue(int value) => $"{value}%";
+
+    private static bool TryParseAdjustmentText(string? text, bool allowNegative, out int value)
+    {
+        string sanitized = (text ?? string.Empty).Trim().Replace("%", string.Empty);
+        if (!allowNegative && sanitized.StartsWith("-", StringComparison.Ordinal))
+        {
+            value = 0;
+            return false;
+        }
+
+        return int.TryParse(sanitized, out value);
+    }
+
+    private sealed record AdjustmentTextBoxBinding(TrackBar TrackBar, bool AllowNegative);
 
     private void ResetImageViewport()
     {

@@ -8,6 +8,7 @@ public sealed class ProjectState
     public string InputFilePath { get; set; } = string.Empty;
     public string WorkingDirectory { get; set; } = string.Empty;
     public List<FrameInfo> Frames { get; set; } = new();
+    public ImageAdjustmentSettings Adjustments { get; set; } = ImageAdjustmentSettings.Default;
 
     // Point final commun dans l'image recadrée
     public PointF TargetAnchor { get; set; } = new(150, 150);

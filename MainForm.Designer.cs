@@ -33,6 +33,21 @@ partial class MainForm
     private NumericUpDown numCropH = null!;
     private NumericUpDown numTargetX = null!;
     private NumericUpDown numTargetY = null!;
+    private TrackBar trackBrightness = null!;
+    private TrackBar trackContrast = null!;
+    private TrackBar trackSaturation = null!;
+    private TrackBar trackTemperature = null!;
+    private TrackBar trackSharpness = null!;
+    private TrackBar trackHighlights = null!;
+    private TrackBar trackShadows = null!;
+    private TextBox txtBrightnessValue = null!;
+    private TextBox txtContrastValue = null!;
+    private TextBox txtSaturationValue = null!;
+    private TextBox txtTemperatureValue = null!;
+    private TextBox txtSharpnessValue = null!;
+    private TextBox txtHighlightsValue = null!;
+    private TextBox txtShadowsValue = null!;
+    private Button btnResetAdjustments = null!;
 
     private TableLayoutPanel rootLayout = null!;
     private FlowLayoutPanel topBar = null!;
@@ -44,6 +59,7 @@ partial class MainForm
     private Panel imageHeaderPanel = null!;
     private GroupBox groupNavigation = null!;
     private GroupBox groupGif = null!;
+    private GroupBox groupAdjustments = null!;
     private GroupBox groupCrop = null!;
     private GroupBox groupTarget = null!;
 
@@ -51,6 +67,10 @@ partial class MainForm
     {
         if (disposing)
         {
+            _adjustmentPreviewTimer?.Stop();
+            _adjustmentPreviewTimer?.Dispose();
+            _framePreviewCts?.Cancel();
+            _framePreviewCts?.Dispose();
             pictureBoxFrame.Image?.Dispose();
             components?.Dispose();
         }
@@ -87,6 +107,21 @@ partial class MainForm
         numCropH = new NumericUpDown();
         numTargetX = new NumericUpDown();
         numTargetY = new NumericUpDown();
+        trackBrightness = new TrackBar();
+        trackContrast = new TrackBar();
+        trackSaturation = new TrackBar();
+        trackTemperature = new TrackBar();
+        trackSharpness = new TrackBar();
+        trackHighlights = new TrackBar();
+        trackShadows = new TrackBar();
+        txtBrightnessValue = new TextBox();
+        txtContrastValue = new TextBox();
+        txtSaturationValue = new TextBox();
+        txtTemperatureValue = new TextBox();
+        txtSharpnessValue = new TextBox();
+        txtHighlightsValue = new TextBox();
+        txtShadowsValue = new TextBox();
+        btnResetAdjustments = new Button();
 
         rootLayout = new TableLayoutPanel();
         topBar = new FlowLayoutPanel();
@@ -98,6 +133,7 @@ partial class MainForm
         imageHeaderPanel = new Panel();
         groupNavigation = new GroupBox();
         groupGif = new GroupBox();
+        groupAdjustments = new GroupBox();
         groupCrop = new GroupBox();
         groupTarget = new GroupBox();
 
@@ -241,7 +277,8 @@ partial class MainForm
 
         settingsLayout.ColumnCount = 1;
         settingsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-        settingsLayout.RowCount = 5;
+        settingsLayout.RowCount = 6;
+        settingsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         settingsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         settingsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         settingsLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
@@ -319,11 +356,53 @@ partial class MainForm
         btnRenderAndExportGif.Click += btnRenderAndExportGif_Click;
         gifLayout.Controls.Add(btnRenderAndExportGif, 0, 0);
 
+        groupAdjustments.Text = "Reglages image";
+        groupAdjustments.Dock = DockStyle.Top;
+        groupAdjustments.AutoSize = true;
+        groupAdjustments.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        groupAdjustments.Padding = new Padding(10);
+        settingsLayout.Controls.Add(groupAdjustments, 0, 2);
+
+        var adjustmentsLayout = new TableLayoutPanel();
+        adjustmentsLayout.ColumnCount = 3;
+        adjustmentsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        adjustmentsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        adjustmentsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        adjustmentsLayout.RowCount = 8;
+        for (int i = 0; i < 8; i++) adjustmentsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        adjustmentsLayout.Dock = DockStyle.Top;
+        adjustmentsLayout.AutoSize = true;
+        adjustmentsLayout.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        groupAdjustments.Controls.Add(adjustmentsLayout);
+
+        ConfigureAdjustmentTrackBar(trackBrightness, -100, 100, 0);
+        ConfigureAdjustmentTrackBar(trackContrast, -100, 100, 0);
+        ConfigureAdjustmentTrackBar(trackSaturation, -100, 100, 0);
+        ConfigureAdjustmentTrackBar(trackTemperature, -100, 100, 0);
+        ConfigureAdjustmentTrackBar(trackSharpness, 0, 100, 0);
+        ConfigureAdjustmentTrackBar(trackHighlights, -100, 100, 0);
+        ConfigureAdjustmentTrackBar(trackShadows, -100, 100, 0);
+
+        AddLabeledTrackBar(adjustmentsLayout, "Luminosite", trackBrightness, txtBrightnessValue, 0);
+        AddLabeledTrackBar(adjustmentsLayout, "Contraste", trackContrast, txtContrastValue, 1);
+        AddLabeledTrackBar(adjustmentsLayout, "Saturation", trackSaturation, txtSaturationValue, 2);
+        AddLabeledTrackBar(adjustmentsLayout, "Temperature", trackTemperature, txtTemperatureValue, 3);
+        AddLabeledTrackBar(adjustmentsLayout, "Nettete", trackSharpness, txtSharpnessValue, 4);
+        AddLabeledTrackBar(adjustmentsLayout, "Zones lumineuses", trackHighlights, txtHighlightsValue, 5);
+        AddLabeledTrackBar(adjustmentsLayout, "Ombres", trackShadows, txtShadowsValue, 6);
+
+        btnResetAdjustments.Text = "Reinitialiser";
+        btnResetAdjustments.Dock = DockStyle.Fill;
+        btnResetAdjustments.AutoSize = true;
+        btnResetAdjustments.Margin = new Padding(4, 8, 4, 4);
+        adjustmentsLayout.Controls.Add(btnResetAdjustments, 0, 7);
+        adjustmentsLayout.SetColumnSpan(btnResetAdjustments, 3);
+
         groupCrop.Text = "Crop";
         groupCrop.Dock = DockStyle.Top;
         groupCrop.AutoSize = true;
         groupCrop.Padding = new Padding(10);
-        settingsLayout.Controls.Add(groupCrop, 0, 3);
+        settingsLayout.Controls.Add(groupCrop, 0, 4);
 
         var cropLayout = new TableLayoutPanel();
         cropLayout.ColumnCount = 2;
@@ -349,7 +428,7 @@ partial class MainForm
         groupTarget.Dock = DockStyle.Top;
         groupTarget.AutoSize = true;
         groupTarget.Padding = new Padding(10);
-        settingsLayout.Controls.Add(groupTarget, 0, 4);
+        settingsLayout.Controls.Add(groupTarget, 0, 5);
 
         var targetLayout = new TableLayoutPanel();
         targetLayout.ColumnCount = 2;
@@ -369,7 +448,7 @@ partial class MainForm
         AddLabeledNumeric(targetLayout, "Target Y", numTargetY, 1);
 
         var filler = new Panel { Dock = DockStyle.Fill };
-        settingsLayout.Controls.Add(filler, 0, 2);
+        settingsLayout.Controls.Add(filler, 0, 3);
 
         statusLayout.ColumnCount = 2;
         statusLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
@@ -408,6 +487,7 @@ partial class MainForm
         splitRight.ResumeLayout(false);
         groupNavigation.ResumeLayout(false);
         groupGif.ResumeLayout(false);
+        groupAdjustments.ResumeLayout(false);
         groupCrop.ResumeLayout(false);
         groupTarget.ResumeLayout(false);
         imagePanel.ResumeLayout(false);
@@ -429,6 +509,33 @@ partial class MainForm
     {
         layout.Controls.Add(new Label { Text = text, Anchor = AnchorStyles.Left, AutoSize = true, Margin = new Padding(4, 8, 4, 4) }, 0, row);
         layout.Controls.Add(numeric, 1, row);
+    }
+
+    private static void ConfigureAdjustmentTrackBar(TrackBar trackBar, int minimum, int maximum, int value)
+    {
+        trackBar.Minimum = minimum;
+        trackBar.Maximum = maximum;
+        trackBar.Value = value;
+        trackBar.TickFrequency = 10;
+        trackBar.SmallChange = 1;
+        trackBar.LargeChange = 10;
+        trackBar.AutoSize = false;
+        trackBar.Height = 36;
+        trackBar.Dock = DockStyle.Fill;
+        trackBar.Margin = new Padding(4);
+    }
+
+    private static void AddLabeledTrackBar(TableLayoutPanel layout, string text, TrackBar trackBar, TextBox valueTextBox, int row)
+    {
+        valueTextBox.Anchor = AnchorStyles.Right;
+        valueTextBox.Width = 64;
+        valueTextBox.Margin = new Padding(4, 6, 4, 4);
+        valueTextBox.TextAlign = HorizontalAlignment.Right;
+        valueTextBox.Text = "0";
+
+        layout.Controls.Add(new Label { Text = text, Anchor = AnchorStyles.Left, AutoSize = true, Margin = new Padding(4, 8, 8, 4) }, 0, row);
+        layout.Controls.Add(trackBar, 1, row);
+        layout.Controls.Add(valueTextBox, 2, row);
     }
 
     private static void ConfigureNavButton(Button button, string text)

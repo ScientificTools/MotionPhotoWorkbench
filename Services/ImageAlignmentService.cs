@@ -17,6 +17,8 @@ namespace MotionPhotoWorkbench.Services;
 
 public sealed class ImageAlignmentService
 {
+    private readonly ImageAdjustmentService _imageAdjustmentService = new();
+
     public SDRectangle ComputeIntersectionCrop(ProjectState project)
     {
         var alignedFrames = GetRenderableFrames(project).ToList();
@@ -62,7 +64,11 @@ public sealed class ImageAlignmentService
                 continue;
 
             string outputPath = Path.Combine(outputDirectory, $"aligned_{frame.Index:0000}.png");
-            await Task.Run(() => RenderOne(frame, intersectionCrop, outputPath), cancellationToken);
+            if (project.Adjustments is null)
+                project.Adjustments = ImageAdjustmentSettings.Default;
+
+            ImageAdjustmentSettings adjustments = project.Adjustments.Clone();
+            await Task.Run(() => RenderOne(frame, intersectionCrop, outputPath, adjustments), cancellationToken);
             outputs.Add(outputPath);
         }
 
@@ -94,9 +100,10 @@ public sealed class ImageAlignmentService
         }
     }
 
-    private static void RenderOne(FrameInfo frame, SDRectangle crop, string outputPath)
+    private void RenderOne(FrameInfo frame, SDRectangle crop, string outputPath, ImageAdjustmentSettings adjustments)
     {
         using SixLabors.ImageSharp.Image<Rgba32> source = SixLabors.ImageSharp.Image.Load<Rgba32>(frame.SourcePath);
+        _imageAdjustmentService.ApplyAdjustments(source, adjustments);
 
         using SixLabors.ImageSharp.Image<Rgba32> canvas = new(crop.Width, crop.Height);
 
