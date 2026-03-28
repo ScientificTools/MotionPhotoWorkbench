@@ -1,0 +1,101 @@
+# MotionPhotoWorkbench
+
+Desktop tool for extracting frames from a motion photo or video, choosing anchor points, aligning the kept frames, adjusting the image, and exporting the result as GIF, MP4, WebM, or animated WebP.
+
+This repository is currently focused on Windows and WinForms. The codebase is published as source code for learning, inspection, and contribution, without a support commitment.
+
+## Features
+
+- Open a motion photo compatible JPEG, a regular image, or a video file
+- Extract frames through FFmpeg
+- Select kept or discarded frames
+- Place an anchor point per frame and align the sequence
+- Adjust brightness, contrast, saturation, temperature, sharpness, highlights, and shadows
+- Preview the automatic crop and refine it before export
+- Export to GIF, MP4, WebM, or animated WebP
+- Save and reload project state as JSON
+
+## Current Status
+
+- Target framework: `.NET 8`
+- UI technology: `WinForms`
+- Supported OS for the current app: `Windows`
+- Repository status: source-first, no installer provided
+
+## Requirements
+
+- Windows
+- .NET 8 SDK
+- FFmpeg available next to the compiled executable as `ffmpeg.exe`
+
+## Build
+
+```powershell
+dotnet restore
+dotnet build MotionPhotoWorkbench.sln -c Release
+```
+
+The project file currently targets `net8.0-windows`, so the application is expected to build and run on Windows.
+
+## Run
+
+Build the solution, then place `ffmpeg.exe` next to the generated executable before launching the application.
+
+Typical output location:
+
+```text
+bin\Debug\net8.0-windows\
+bin\Release\net8.0-windows\
+```
+
+## FFmpeg
+
+FFmpeg is required for frame extraction and video export.
+
+- FFmpeg is not included in this repository
+- You are responsible for obtaining FFmpeg separately and respecting its license terms
+- The app expects `ffmpeg.exe` beside the application executable
+
+## Samples
+
+The repository includes real sample media in [`Samples/`](/c:/perso/VisualStudio/MotionPhotoWorkbench/Samples) so that visitors can quickly test the software and compare the exported formats.
+
+Included samples:
+
+- a motion photo JPEG source
+- exported GIF, MP4, WebM, and animated WebP files
+- a small HTML page for previewing the exported files in a browser
+
+The previously saved `project.json` sample is intentionally not published because it contained personal absolute filesystem paths.
+
+## Known Limitations
+
+- Windows-only UI for now
+- No packaged installer
+- FFmpeg path is not configurable from the UI yet
+- Some motion photo variants may contain embedded video in formats this tool does not detect automatically
+- The repository does not ship a reusable sample project JSON because local path data was removed from publication
+
+## Roadmap
+
+- Improve public documentation and onboarding
+- Add CI validation for public contributions
+- Decouple core processing logic further from the WinForms UI
+- Evaluate a future cross-platform UI path if the project direction justifies it
+
+## Contributing
+
+Small improvements and bug reports are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for lightweight contribution guidelines.
+
+## Licensing
+
+The repository uses two licenses:
+
+- Source code is licensed under GNU GPL v3
+- Media files and demo assets in [`Samples/`](/c:/perso/VisualStudio/MotionPhotoWorkbench/Samples) are licensed under Creative Commons Attribution 4.0 International (`CC BY 4.0`)
+
+This means the software code and the sample media do not share the same redistribution terms. For the sample media details and required attribution, see [`Samples/LICENSE.md`](/c:/perso/VisualStudio/MotionPhotoWorkbench/Samples/LICENSE.md).
+
+## Code License
+
+This project is licensed under the GNU GPL v3. See [LICENSE.txt](LICENSE.txt).

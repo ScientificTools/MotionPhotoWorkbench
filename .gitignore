@@ -7,6 +7,7 @@
 *.rsuser
 *.suo
 *.user
+*.csproj.user
 *.userosscache
 *.sln.docstates
 
@@ -62,6 +63,7 @@ BenchmarkDotNet.Artifacts/
 project.lock.json
 project.fragment.lock.json
 artifacts/
+.dotnet/
 
 # ASP.NET Scaffolding
 ScaffoldingReadMe.txt
