@@ -53,6 +53,7 @@ public partial class MainForm : Form
     public MainForm()
     {
         InitializeComponent();
+        ApplyEnglishUiText();
 
         string ffmpegPath = Path.Combine(AppContext.BaseDirectory, "ffmpeg.exe");
         _ffmpegService = new FfmpegService(ffmpegPath);
@@ -87,6 +88,58 @@ public partial class MainForm : Form
         UpdateFrameInfo();
     }
 
+    private void ApplyEnglishUiText()
+    {
+        btnOpenInput.Text = "Open";
+        btnSaveProject.Text = "Save project";
+        btnLoadProject.Text = "Load project";
+        btnZoomIn.Text = "Zoom in";
+        btnZoomOut.Text = "Zoom out";
+        btnToggleKeep.Text = "Keep / discard";
+        btnRenderAndExportGif.Text = "Preview / export";
+        btnResetAdjustments.Text = "Reset";
+        lblFrameLegend.Text = "Black: anchor to place   |   Green: anchor placed   |   Red: discarded frame";
+        lblStatus.Text = "Ready.";
+        lblStatus.AutoSize = true;
+        lblStatus.Dock = DockStyle.Top;
+        lblStatus.MinimumSize = new Size(0, 40);
+        lblStatus.Padding = new Padding(0, 4, 0, 4);
+        lblStatus.ForeColor = Color.ForestGreen;
+        lblStatus.TextAlign = ContentAlignment.TopLeft;
+        lblFrameInfo.Text = "No frame selected";
+        menuToggleKeep.Text = "Discard / restore";
+        groupNavigation.Text = "Navigation";
+        groupGif.Text = "Export";
+        groupAdjustments.Text = "Image adjustments";
+        foreach (Control control in Controls)
+            TranslateControlTree(control);
+    }
+
+    private static void TranslateControlTree(Control control)
+    {
+        switch (control)
+        {
+            case Label label:
+                label.Text = label.Text switch
+                {
+                    "Luminosite" => "Brightness",
+                    "Contraste" => "Contrast",
+                    "Nettete" => "Sharpness",
+                    "Zones lumineuses" => "Highlights",
+                    "Ombres" => "Shadows",
+                    "Clic gauche = point fixe | molette = zoom | glisser = déplacer" => "Left click = anchor point | wheel = zoom | drag = pan",
+                    "Clic gauche = point fixe | molette = zoom | glisser = dÃ©placer" => "Left click = anchor point | wheel = zoom | drag = pan",
+                    "Aucune frame sélectionnée" => "No frame selected",
+                    "Aucune frame sÃ©lectionnÃ©e" => "No frame selected",
+                    _ => label.Text
+                };
+                break;
+        }
+
+        foreach (Control child in control.Controls)
+            TranslateControlTree(child);
+    }
+
     private void MainForm_Load(object? sender, EventArgs e)
     {
         ApplyResponsiveLayout();
@@ -119,6 +172,14 @@ public partial class MainForm : Form
 
         int desiredRightImageWidth = Math.Max(0, splitRight.ClientSize.Width - desiredToolsWidth);
         SetSafeSplitterDistance(splitRight, desiredRightImageWidth);
+        UpdateStatusLabelLayout();
+    }
+
+    private void UpdateStatusLabelLayout()
+    {
+        Control parent = lblStatus.Parent ?? statusLayout;
+        int availableWidth = Math.Max(160, parent.ClientSize.Width - parent.Padding.Horizontal);
+        lblStatus.MaximumSize = new Size(availableWidth, 0);
     }
 
     private static void SetSafeSplitterDistance(SplitContainer splitContainer, int desired)
@@ -146,7 +207,7 @@ public partial class MainForm : Form
     {
         using var ofd = new OpenFileDialog
         {
-            Filter = "Images/Vidéos|*.jpg;*.jpeg;*.png;*.heic;*.mp4;*.mov|Tous les fichiers|*.*"
+            Filter = "Images/Videos|*.jpg;*.jpeg;*.png;*.heic;*.mp4;*.mov|All files|*.*"
         };
 
         if (ofd.ShowDialog(this) != DialogResult.OK)
@@ -168,7 +229,7 @@ public partial class MainForm : Form
         NormalizeProjectState(_project);
         SyncAdjustmentControlsFromProject();
 
-        lblStatus.Text = "Préparation de l'extraction...";
+        lblStatus.Text = "Preparing extraction...";
         UseWaitCursor = true;
 
         try
@@ -202,21 +263,21 @@ public partial class MainForm : Form
                 BeginInvoke(new Action(() => LoadFrame(0)));
                 int skippedCount = files.Count - validFiles.Count;
                 lblStatus.Text = skippedCount > 0
-                    ? $"Frames extraites : {_project.Frames.Count} ({skippedCount} ignorée(s), image(s) illisible(s))"
-                    : $"Frames extraites : {_project.Frames.Count}";
+                    ? $"Extracted frames: {_project.Frames.Count} ({skippedCount} skipped unreadable image(s))"
+                    : $"Extracted frames: {_project.Frames.Count}";
             }
             else
             {
                 ClearCurrentImage();
                 lblStatus.Text = files.Count > 0
-                    ? "Aucune frame exploitable : toutes les images extraites sont illisibles."
-                    : "Aucune frame extraite.";
+                    ? "No usable frames: all extracted images are unreadable."
+                    : "No frames extracted.";
             }
         }
         catch (Exception ex)
         {
-            MessageBox.Show(this, ex.Message, "Erreur", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            lblStatus.Text = "Erreur";
+            MessageBox.Show(this, ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            lblStatus.Text = "Error";
         }
         finally
         {
@@ -237,11 +298,11 @@ public partial class MainForm : Form
                 return embeddedVideoPath;
             }
 
-            message = $"{motionMessage} Extraction directe via FFmpeg sur le fichier source.";
+            message = $"{motionMessage} Direct FFmpeg extraction will be used on the source file.";
             return inputFile;
         }
 
-        message = "Extraction directe via FFmpeg.";
+        message = "Direct FFmpeg extraction.";
         return inputFile;
     }
 
@@ -307,7 +368,7 @@ public partial class MainForm : Form
     {
         if (_currentIndex < 0 || _currentIndex >= _project.Frames.Count)
         {
-            lblFrameInfo.Text = "Aucune frame sélectionnée";
+            lblFrameInfo.Text = "No frame selected";
             return;
         }
 
@@ -315,7 +376,7 @@ public partial class MainForm : Form
         lblFrameInfo.Text =
             $"Frame {_currentIndex + 1}/{_project.Frames.Count} | " +
             $"Keep={frame.IsKept} | " +
-            $"Anchor={(frame.AnchorPoint.HasValue ? $"{frame.AnchorPoint.Value.X:0.0},{frame.AnchorPoint.Value.Y:0.0}" : "non défini")}";
+            $"Anchor={(frame.AnchorPoint.HasValue ? $"{frame.AnchorPoint.Value.X:0.0},{frame.AnchorPoint.Value.Y:0.0}" : "not set")}";
     }
 
     private void listBoxFrames_SelectedIndexChanged(object sender, EventArgs e)
@@ -337,7 +398,7 @@ public partial class MainForm : Form
             return;
 
         listBoxFrames.SelectedIndex = index;
-        menuToggleKeep.Text = _project.Frames[index].IsKept ? "Ecarter la frame" : "Reintegrer la frame";
+        menuToggleKeep.Text = _project.Frames[index].IsKept ? "Discard frame" : "Restore frame";
     }
 
     private void listBoxFrames_KeyDown(object? sender, KeyEventArgs e)
@@ -390,8 +451,8 @@ public partial class MainForm : Form
 
         string fileName = Path.GetFileName(frame.SourcePath);
         string status = frame.IsKept
-            ? frame.AnchorPoint.HasValue ? "POINT" : "A PLACER"
-            : "ECARTEE";
+            ? frame.AnchorPoint.HasValue ? "ANCHOR" : "TO PLACE"
+            : "DISCARDED";
 
         Rectangle textBounds = new(e.Bounds.X + 6, e.Bounds.Y + 1, Math.Max(0, e.Bounds.Width - 142), e.Bounds.Height - 2);
         Rectangle badgeBounds = new(e.Bounds.Right - 130, e.Bounds.Y + 1, 124, e.Bounds.Height - 2);
@@ -588,34 +649,23 @@ public partial class MainForm : Form
         {
             if (_project.Frames.Count == 0)
             {
-                MessageBox.Show(this, "Aucune frame chargée.");
+                MessageBox.Show(this, "No frames loaded.");
                 return;
             }
-
-            _project.OutputCrop = new Rectangle(
-                (int)numCropX.Value,
-                (int)numCropY.Value,
-                (int)numCropW.Value,
-                (int)numCropH.Value);
-
-            _project.TargetAnchor = new SDPointF(
-                (float)numTargetX.Value,
-                (float)numTargetY.Value);
 
             _alignmentService.ComputeOffsets(_project);
 
             string alignedDir = Path.Combine(_project.WorkingDirectory, "aligned");
-            lblStatus.Text = "Rendu des images alignées...";
+            lblStatus.Text = "Rendering aligned images...";
             UseWaitCursor = true;
 
             var renderResult = await _alignmentService.RenderAlignedFramesAsync(_project, alignedDir);
             var rendered = renderResult.FramePaths.ToList();
             _project.OutputCrop = renderResult.IntersectionCrop;
-            SyncCropControls(renderResult.IntersectionCrop);
 
             if (rendered.Count == 0)
             {
-                MessageBox.Show(this, "Aucune image exportable. Vérifie les points fixes.");
+                MessageBox.Show(this, "No exportable images. Check the anchor points.");
                 return;
             }
 
@@ -626,13 +676,15 @@ public partial class MainForm : Form
             {
                 PreviewForm.PreviewExportChoice exportChoice;
 
-                lblStatus.Text = "Aperçu du crop automatique...";
+                lblStatus.Text = "Previewing automatic crop...";
                 using (var previewImage = LoadPreviewImage(renderResult.PreviewPath))
                 using (var previewForm = new PreviewForm(previewImage, renderResult.IntersectionCrop, _project.VideoFps, additionalCrop))
                 {
+                    previewForm.ExportRequestedAsync = (form, choice) => ExecutePreviewExportAsync(form, choice, renderResult.IntersectionCrop, alignedBase);
+
                     if (previewForm.ShowDialog(this) != DialogResult.OK)
                     {
-                        lblStatus.Text = "Prévisualisation fermée.";
+                        lblStatus.Text = "Preview closed.";
                         return;
                     }
 
@@ -643,7 +695,7 @@ public partial class MainForm : Form
 
                 if (additionalCrop.Width <= 0 || additionalCrop.Height <= 0)
                 {
-                    MessageBox.Show(this, "Le rectangle de crop additionnel est vide.");
+                    MessageBox.Show(this, "The additional crop rectangle is empty.");
                     continue;
                 }
 
@@ -652,7 +704,7 @@ public partial class MainForm : Form
                     additionalCrop.Width != renderResult.IntersectionCrop.Width ||
                     additionalCrop.Height != renderResult.IntersectionCrop.Height)
                 {
-                    lblStatus.Text = "Application du crop additionnel...";
+                    lblStatus.Text = "Applying additional crop...";
                     string finalDir = Path.Combine(_project.WorkingDirectory, "final");
                     exportFrames = (await _alignmentService.ApplyAdditionalCropAsync(alignedBase, additionalCrop, finalDir)).ToList();
                 }
@@ -662,24 +714,22 @@ public partial class MainForm : Form
                     renderResult.IntersectionCrop.Y + additionalCrop.Y,
                     additionalCrop.Width,
                     additionalCrop.Height);
-                SyncCropControls(_project.OutputCrop);
-
                 if (exportChoice == PreviewForm.PreviewExportChoice.Mpeg)
                 {
                     using var sfd = new SaveFileDialog
                     {
-                        Filter = "Vidéo MP4 (H.264)|*.mp4",
+                        Filter = "MP4 video (H.264)|*.mp4",
                         FileName = "animation.mp4"
                     };
 
                     if (sfd.ShowDialog(this) != DialogResult.OK)
                         continue;
 
-                    lblStatus.Text = "Création de la vidéo MP4...";
+                    lblStatus.Text = "Creating MP4 video...";
                     await _ffmpegService.ExportMpegAsync(exportFrames, sfd.FileName, _project.VideoFps, _project.WorkingDirectory);
 
-                    lblStatus.Text = "Vidéo exportée.";
-                    MessageBox.Show(this, "Export vidéo terminé.");
+                    lblStatus.Text = "Video exported.";
+                    MessageBox.Show(this, "Video export completed.");
                 }
                 else if (exportChoice == PreviewForm.PreviewExportChoice.WebM)
                 {
@@ -695,8 +745,8 @@ public partial class MainForm : Form
                     lblStatus.Text = "CrÃ©ation de la vidÃ©o WebM...";
                     await _ffmpegService.ExportWebMAsync(exportFrames, sfd.FileName, _project.VideoFps, _project.WorkingDirectory);
 
-                    lblStatus.Text = "VidÃ©o WebM exportÃ©e.";
-                    MessageBox.Show(this, "Export WebM terminÃ©.");
+                    lblStatus.Text = "WebM video exported.";
+                    MessageBox.Show(this, "WebM export completed.");
                 }
                 else if (exportChoice == PreviewForm.PreviewExportChoice.WebP)
                 {
@@ -712,32 +762,32 @@ public partial class MainForm : Form
                     lblStatus.Text = "CrÃ©ation du WebP animÃ©...";
                     await _ffmpegService.ExportAnimatedWebpAsync(exportFrames, sfd.FileName, _project.VideoFps, _project.WorkingDirectory);
 
-                    lblStatus.Text = "WebP animÃ© exportÃ©.";
-                    MessageBox.Show(this, "Export WebP terminÃ©.");
+                    lblStatus.Text = "Animated WebP exported.";
+                    MessageBox.Show(this, "WebP export completed.");
                 }
                 else
                 {
                     using var sfd = new SaveFileDialog
                     {
-                        Filter = "GIF animé|*.gif",
+                        Filter = "Animated GIF|*.gif",
                         FileName = "animation.gif"
                     };
 
                     if (sfd.ShowDialog(this) != DialogResult.OK)
                         continue;
 
-                    lblStatus.Text = "Création du GIF...";
+                    lblStatus.Text = "Creating GIF...";
                     _gifExportService.ExportGif(exportFrames, sfd.FileName, ConvertFpsToGifDelayCs(_project.VideoFps));
 
-                    lblStatus.Text = "GIF exporté.";
-                    MessageBox.Show(this, "Export GIF terminé.");
+                    lblStatus.Text = "GIF exported.";
+                    MessageBox.Show(this, "GIF export completed.");
                 }
             }
         }
         catch (Exception ex)
         {
-            MessageBox.Show(this, ex.Message, "Erreur", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            lblStatus.Text = "Erreur";
+            MessageBox.Show(this, ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            lblStatus.Text = "Error";
         }
         finally
         {
@@ -749,7 +799,7 @@ public partial class MainForm : Form
     {
         using var sfd = new SaveFileDialog
         {
-            Filter = "Projet JSON|*.json",
+            Filter = "JSON project|*.json",
             FileName = "project.json"
         };
 
@@ -757,14 +807,120 @@ public partial class MainForm : Form
             return;
 
         await _persistenceService.SaveAsync(_project, sfd.FileName);
-        lblStatus.Text = "Projet sauvegardé.";
+        lblStatus.Text = "Project saved.";
+    }
+
+    private async Task ExecutePreviewExportAsync(
+        PreviewForm previewForm,
+        PreviewForm.PreviewExportChoice exportChoice,
+        Rectangle intersectionCrop,
+        IReadOnlyList<string> alignedBase)
+    {
+        Rectangle additionalCrop = previewForm.SelectedCrop;
+        _project.VideoFps = previewForm.ExportFps;
+
+        if (additionalCrop.Width <= 0 || additionalCrop.Height <= 0)
+        {
+            MessageBox.Show(previewForm, "The additional crop rectangle is empty.", "Export", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        previewForm.BeginBusy("Calculating...");
+        lblStatus.Text = "Calculating export...";
+
+        try
+        {
+            List<string> exportFrames = alignedBase.ToList();
+            if (additionalCrop.X != 0 || additionalCrop.Y != 0 ||
+                additionalCrop.Width != intersectionCrop.Width ||
+                additionalCrop.Height != intersectionCrop.Height)
+            {
+                string finalDir = Path.Combine(_project.WorkingDirectory, "final");
+                exportFrames = (await _alignmentService.ApplyAdditionalCropAsync(alignedBase, additionalCrop, finalDir)).ToList();
+            }
+
+            _project.OutputCrop = new Rectangle(
+                intersectionCrop.X + additionalCrop.X,
+                intersectionCrop.Y + additionalCrop.Y,
+                additionalCrop.Width,
+                additionalCrop.Height);
+
+            using SaveFileDialog sfd = CreateExportSaveDialog(exportChoice);
+            if (sfd.ShowDialog(previewForm) != DialogResult.OK)
+            {
+                previewForm.EndBusy("Ready.");
+                lblStatus.Text = "Export canceled.";
+                return;
+            }
+
+            previewForm.UpdateBusyMessage("Saving...");
+            lblStatus.Text = "Saving export...";
+
+            switch (exportChoice)
+            {
+                case PreviewForm.PreviewExportChoice.Mpeg:
+                    await _ffmpegService.ExportMpegAsync(exportFrames, sfd.FileName, _project.VideoFps, _project.WorkingDirectory);
+                    lblStatus.Text = "MP4 export completed.";
+                    MessageBox.Show(previewForm, "MP4 export completed.", "Export", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    break;
+                case PreviewForm.PreviewExportChoice.WebM:
+                    await _ffmpegService.ExportWebMAsync(exportFrames, sfd.FileName, _project.VideoFps, _project.WorkingDirectory);
+                    lblStatus.Text = "WebM export completed.";
+                    MessageBox.Show(previewForm, "WebM export completed.", "Export", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    break;
+                case PreviewForm.PreviewExportChoice.WebP:
+                    await _ffmpegService.ExportAnimatedWebpAsync(exportFrames, sfd.FileName, _project.VideoFps, _project.WorkingDirectory);
+                    lblStatus.Text = "WebP export completed.";
+                    MessageBox.Show(previewForm, "WebP export completed.", "Export", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    break;
+                case PreviewForm.PreviewExportChoice.Gif:
+                    _gifExportService.ExportGif(exportFrames, sfd.FileName, ConvertFpsToGifDelayCs(_project.VideoFps));
+                    lblStatus.Text = "GIF export completed.";
+                    MessageBox.Show(previewForm, "GIF export completed.", "Export", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    break;
+            }
+
+            previewForm.EndBusy("Ready.");
+        }
+        catch
+        {
+            previewForm.EndBusy("Ready.");
+            throw;
+        }
+    }
+
+    private static SaveFileDialog CreateExportSaveDialog(PreviewForm.PreviewExportChoice exportChoice)
+    {
+        return exportChoice switch
+        {
+            PreviewForm.PreviewExportChoice.Mpeg => new SaveFileDialog
+            {
+                Filter = "MP4 video (H.264)|*.mp4",
+                FileName = "animation.mp4"
+            },
+            PreviewForm.PreviewExportChoice.WebM => new SaveFileDialog
+            {
+                Filter = "WebM video (VP9)|*.webm",
+                FileName = "animation.webm"
+            },
+            PreviewForm.PreviewExportChoice.WebP => new SaveFileDialog
+            {
+                Filter = "Animated WebP|*.webp",
+                FileName = "animation.webp"
+            },
+            _ => new SaveFileDialog
+            {
+                Filter = "Animated GIF|*.gif",
+                FileName = "animation.gif"
+            }
+        };
     }
 
     private async void btnLoadProject_Click(object sender, EventArgs e)
     {
         using var ofd = new OpenFileDialog
         {
-            Filter = "Projet JSON|*.json"
+            Filter = "JSON project|*.json"
         };
 
         if (ofd.ShowDialog(this) != DialogResult.OK)
@@ -773,13 +929,13 @@ public partial class MainForm : Form
         var loaded = await _persistenceService.LoadAsync(ofd.FileName);
         if (loaded is null)
         {
-            MessageBox.Show(this, "Impossible de charger le projet.");
+            MessageBox.Show(this, "Unable to load project.");
             return;
         }
         NormalizeProjectState(loaded);
 
         UseWaitCursor = true;
-        lblStatus.Text = "Chargement du projet...";
+        lblStatus.Text = "Loading project...";
 
         try
         {
@@ -787,8 +943,8 @@ public partial class MainForm : Form
         }
         catch (Exception ex)
         {
-            MessageBox.Show(this, ex.Message, "Erreur", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            lblStatus.Text = "Erreur";
+            MessageBox.Show(this, ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            lblStatus.Text = "Error";
             return;
         }
         finally
@@ -805,19 +961,7 @@ public partial class MainForm : Form
         else
             ClearCurrentImage();
 
-        SyncCropControls(_project.OutputCrop);
-        numTargetX.Value = ClampToRange((decimal)_project.TargetAnchor.X, numTargetX.Minimum, numTargetX.Maximum);
-        numTargetY.Value = ClampToRange((decimal)_project.TargetAnchor.Y, numTargetY.Minimum, numTargetY.Maximum);
-
-        lblStatus.Text = "Projet chargé.";
-    }
-
-    private void SyncCropControls(Rectangle crop)
-    {
-        numCropX.Value = ClampToRange(crop.X, numCropX.Minimum, numCropX.Maximum);
-        numCropY.Value = ClampToRange(crop.Y, numCropY.Minimum, numCropY.Maximum);
-        numCropW.Value = ClampToRange(crop.Width, numCropW.Minimum, numCropW.Maximum);
-        numCropH.Value = ClampToRange(crop.Height, numCropH.Minimum, numCropH.Maximum);
+        lblStatus.Text = "Project loaded.";
     }
 
     private static Bitmap LoadPreviewImage(string previewPath)
@@ -830,10 +974,10 @@ public partial class MainForm : Form
     private async Task EnsureProjectWorkingFilesAsync(ProjectState project)
     {
         if (string.IsNullOrWhiteSpace(project.InputFilePath))
-            throw new InvalidOperationException("Le projet ne contient pas de chemin d'image source.");
+            throw new InvalidOperationException("The project does not contain a source image path.");
 
         if (!File.Exists(project.InputFilePath))
-            throw new FileNotFoundException($"Image source introuvable : {project.InputFilePath}");
+            throw new FileNotFoundException($"Source image not found: {project.InputFilePath}");
 
         if (string.IsNullOrWhiteSpace(project.WorkingDirectory))
         {
@@ -845,7 +989,7 @@ public partial class MainForm : Form
         if (ProjectHasUsableFrames(project))
             return;
 
-        lblStatus.Text = "Reconstruction du repertoire de travail...";
+        lblStatus.Text = "Rebuilding working directory...";
 
         List<FrameInfo> savedFrames = project.Frames
             .Select(frame => new FrameInfo
@@ -861,7 +1005,7 @@ public partial class MainForm : Form
 
         string framesDir = Path.Combine(project.WorkingDirectory, "frames");
         string sourceForExtraction = ResolveSourceForExtraction(project.InputFilePath, project.WorkingDirectory, out string sourceMessage);
-        lblStatus.Text = $"{sourceMessage} Reconstruction des frames...";
+        lblStatus.Text = $"{sourceMessage} Rebuilding frames...";
         Application.DoEvents();
 
         await _ffmpegService.ExtractFramesAsync(sourceForExtraction, framesDir);
@@ -1183,8 +1327,8 @@ public partial class MainForm : Form
         }
         catch (Exception ex)
         {
-            lblStatus.Text = "Erreur d'aperÃ§u image.";
-            MessageBox.Show(this, ex.Message, "Erreur", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            lblStatus.Text = "Image preview error.";
+            MessageBox.Show(this, ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
         finally
         {

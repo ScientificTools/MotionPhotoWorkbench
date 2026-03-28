@@ -22,4 +22,4 @@ What this means in practice:
 - Commercial reuse is allowed
 - Attribution to the author is required
 
-This license file applies only to the sample media and demo assets listed above. It does not apply to the application source code in the rest of the repository, which remains under GNU GPL v3.
+This license file applies only to the sample media and demo assets listed above. It does not apply to the application source code in the rest of the repository, which remains under the MIT License.

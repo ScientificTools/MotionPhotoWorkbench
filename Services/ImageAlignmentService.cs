@@ -23,7 +23,7 @@ public sealed class ImageAlignmentService
     {
         var alignedFrames = GetRenderableFrames(project).ToList();
         if (alignedFrames.Count == 0)
-            throw new InvalidOperationException("Aucune frame exploitable : il faut au moins une image gardee avec point fixe.");
+            throw new InvalidOperationException("No usable frame: at least one kept image with an anchor point is required.");
 
         SDRectangle intersection = alignedFrames[0].VisibleArea;
 
@@ -31,7 +31,7 @@ public sealed class ImageAlignmentService
         {
             intersection = SDRectangle.Intersect(intersection, frame.VisibleArea);
             if (intersection.Width <= 0 || intersection.Height <= 0)
-                throw new InvalidOperationException("Les zones visibles n'ont aucune intersection commune avec les points fixes actuels.");
+                throw new InvalidOperationException("The visible areas do not share any common intersection with the current anchor points.");
         }
 
         return intersection;
@@ -73,7 +73,7 @@ public sealed class ImageAlignmentService
         }
 
         if (outputs.Count == 0)
-            throw new InvalidOperationException("Aucune image exportable. Verifie les points fixes.");
+            throw new InvalidOperationException("No exportable images. Check the anchor points.");
 
         string previewPath = Path.Combine(outputDirectory, "preview_merged.png");
         await Task.Run(() => BuildMergedPreview(outputs, previewPath), cancellationToken);
@@ -91,7 +91,7 @@ public sealed class ImageAlignmentService
         foreach (var frame in project.Frames.Where(f => f.IsKept && f.AnchorPoint.HasValue))
         {
             var info = SixLabors.ImageSharp.Image.Identify(frame.SourcePath)
-                ?? throw new InvalidOperationException($"Impossible d'identifier l'image source '{frame.SourcePath}'.");
+                ?? throw new InvalidOperationException($"Unable to identify source image '{frame.SourcePath}'.");
 
             int drawX = (int)MathF.Round(frame.OffsetX);
             int drawY = (int)MathF.Round(frame.OffsetY);
@@ -133,7 +133,7 @@ public sealed class ImageAlignmentService
             using SixLabors.ImageSharp.Image<Rgba32> frame = SixLabors.ImageSharp.Image.Load<Rgba32>(framePath);
 
             if (frame.Width != preview.Width || frame.Height != preview.Height)
-                throw new InvalidOperationException("Les images alignees n'ont pas toutes la meme taille.");
+                throw new InvalidOperationException("Aligned images do not all have the same size.");
 
             for (int y = 0; y < frame.Height; y++)
             {
@@ -173,10 +173,10 @@ public sealed class ImageAlignmentService
         CancellationToken cancellationToken = default)
     {
         if (framePaths.Count == 0)
-            throw new InvalidOperationException("Aucune image a recadrer.");
+            throw new InvalidOperationException("No images to crop.");
 
         if (crop.Width <= 0 || crop.Height <= 0)
-            throw new InvalidOperationException("Le crop additionnel doit avoir une taille positive.");
+            throw new InvalidOperationException("The additional crop must have a positive size.");
 
         Directory.CreateDirectory(outputDirectory);
 
@@ -201,7 +201,7 @@ public sealed class ImageAlignmentService
         var effectiveCrop = SDRectangle.Intersect(sourceBounds, crop);
 
         if (effectiveCrop.Width <= 0 || effectiveCrop.Height <= 0)
-            throw new InvalidOperationException("Le crop additionnel sort totalement de l'image.");
+            throw new InvalidOperationException("The additional crop falls completely outside the image.");
 
         source.Mutate(ctx => ctx.Crop(new ISRectangle(effectiveCrop.X, effectiveCrop.Y, effectiveCrop.Width, effectiveCrop.Height)));
         source.Save(outputPath, new PngEncoder());

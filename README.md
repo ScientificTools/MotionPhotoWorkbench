@@ -52,13 +52,16 @@ bin\Release\net8.0-windows\
 
 FFmpeg is required for frame extraction and video export.
 
-- FFmpeg is not included in this repository
-- You are responsible for obtaining FFmpeg separately and respecting its license terms
-- The app expects `ffmpeg.exe` beside the application executable
+- FFmpeg is not redistributed in this repository
+- Official FFmpeg download page: `https://ffmpeg.org/download.html`
+- Recommended Windows provider page: `https://www.gyan.dev/ffmpeg/builds/`
+- Recommended Windows choice: x64 `release essentials`
+- After download, place `ffmpeg.exe` beside the application executable
+- See `THIRD_PARTY_NOTICES.md` and `third_party/ffmpeg/README.md` for setup guidance
 
 ## Samples
 
-The repository includes real sample media in [`Samples/`](/c:/perso/VisualStudio/MotionPhotoWorkbench/Samples) so that visitors can quickly test the software and compare the exported formats.
+The repository includes real sample media in `Samples/` so that visitors can quickly test the software and compare the exported formats.
 
 Included samples:
 
@@ -91,11 +94,11 @@ Small improvements and bug reports are welcome. See [CONTRIBUTING.md](CONTRIBUTI
 
 The repository uses two licenses:
 
-- Source code is licensed under GNU GPL v3
+- Source code is licensed under the MIT License
 - Media files and demo assets in [`Samples/`](/c:/perso/VisualStudio/MotionPhotoWorkbench/Samples) are licensed under Creative Commons Attribution 4.0 International (`CC BY 4.0`)
 
 This means the software code and the sample media do not share the same redistribution terms. For the sample media details and required attribution, see [`Samples/LICENSE.md`](/c:/perso/VisualStudio/MotionPhotoWorkbench/Samples/LICENSE.md).
 
 ## Code License
 
-This project is licensed under the GNU GPL v3. See [LICENSE.txt](LICENSE.txt).
+This project is licensed under the MIT License. See [LICENSE.txt](LICENSE.txt).

@@ -12,7 +12,7 @@ public sealed class MotionPhotoService
 
         if (!File.Exists(inputPath))
         {
-            message = "Fichier introuvable.";
+            message = "File not found.";
             return false;
         }
 
@@ -24,11 +24,11 @@ public sealed class MotionPhotoService
         {
             Directory.CreateDirectory(Path.GetDirectoryName(outputMp4Path)!);
             File.WriteAllBytes(outputMp4Path, data.AsSpan(mp4Start).ToArray());
-            message = "Vidéo embarquée détectée et extraite.";
+            message = "Embedded video detected and extracted.";
             return true;
         }
 
-        message = "Aucune vidéo embarquée détectée dans le fichier. Si Windows lit bien une Motion Photo mais que cette application ne trouve rien, il est possible que la copie du fichier ait perdu sa partie vidéo ou que le format diffère.";
+        message = "No embedded video detected in the file. If Windows can read it as a Motion Photo but this application cannot find anything, the copied file may have lost its video part or use a different format.";
         return false;
     }
 

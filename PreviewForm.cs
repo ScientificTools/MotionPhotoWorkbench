@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 
 using MotionPhotoWorkbench.Utils;
@@ -49,8 +50,10 @@ public sealed class PreviewForm : Form
     private readonly Button _btnExportWebM;
     private readonly Button _btnExportWebP;
     private readonly Label _lblSelection;
+    private readonly Label _lblOperationStatus;
     private readonly ComboBox _cmbAspectRatio;
     private readonly NumericUpDown _numFps;
+    private readonly ProgressBar _progressBusy;
     private readonly Rectangle _imageBounds;
     private readonly List<CropRatioOption> _ratioOptions;
 
@@ -65,13 +68,14 @@ public sealed class PreviewForm : Form
     private const int HandleHitSize = 12;
     private const int DragThreshold = 3;
 
+    public Func<PreviewForm, PreviewExportChoice, Task>? ExportRequestedAsync { get; set; }
+
     public PreviewForm(Image previewImage, Rectangle cropArea, int initialFps, Rectangle? initialSelection = null)
     {
-        Text = "Apercu du crop automatique";
+        Text = "Automatic crop preview";
         StartPosition = FormStartPosition.CenterParent;
         MinimumSize = new Size(760, 580);
-        Width = 1040;
-        Height = 780;
+        ApplyInitialWindowSize();
 
         _imageBounds = new Rectangle(0, 0, previewImage.Width, previewImage.Height);
         float originalAspectRatio = cropArea.Height > 0
@@ -80,9 +84,9 @@ public sealed class PreviewForm : Form
 
         _ratioOptions = new List<CropRatioOption>
         {
-            new("Comme l'original", originalAspectRatio),
-            new("Libre", null),
-            new("Carre (1:1)", 1f),
+            new("Match original", originalAspectRatio),
+            new("Free", null),
+            new("Square (1:1)", 1f),
             new("16:9", 16f / 9f),
             new("5:4", 5f / 4f),
             new("4:3", 4f / 3f),
@@ -97,7 +101,7 @@ public sealed class PreviewForm : Form
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 5,
+            RowCount = 6,
             Padding = new Padding(10)
         };
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -105,13 +109,14 @@ public sealed class PreviewForm : Form
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         Controls.Add(root);
 
         var lblInfo = new Label
         {
             Dock = DockStyle.Fill,
             AutoSize = true,
-            Text = $"Intersection retenue : X={cropArea.X}, Y={cropArea.Y}, W={cropArea.Width}, H={cropArea.Height}"
+            Text = $"Selected intersection: X={cropArea.X}, Y={cropArea.Y}, W={cropArea.Width}, H={cropArea.Height}"
         };
         root.Controls.Add(lblInfo, 0, 0);
 
@@ -125,7 +130,7 @@ public sealed class PreviewForm : Form
         var lblAspectRatio = new Label
         {
             AutoSize = true,
-            Text = "Proportion du crop :",
+            Text = "Crop aspect ratio:",
             Margin = new Padding(0, 8, 8, 0),
             Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point)
         };
@@ -175,6 +180,40 @@ public sealed class PreviewForm : Form
         _pictureBox.Paint += PictureBox_Paint;
         root.Controls.Add(_pictureBox, 0, 3);
 
+        var operationPanel = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 2,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Margin = new Padding(0, 8, 0, 0)
+        };
+        operationPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        operationPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        root.Controls.Add(operationPanel, 0, 4);
+
+        _lblOperationStatus = new Label
+        {
+            AutoSize = false,
+            Dock = DockStyle.Fill,
+            Text = "Ready.",
+            TextAlign = ContentAlignment.TopLeft,
+            Margin = new Padding(0, 6, 8, 0),
+            MinimumSize = new Size(0, 40),
+            Padding = new Padding(0, 2, 0, 2)
+        };
+        operationPanel.Controls.Add(_lblOperationStatus, 0, 0);
+
+        _progressBusy = new ProgressBar
+        {
+            Style = ProgressBarStyle.Marquee,
+            MarqueeAnimationSpeed = 25,
+            Width = 180,
+            Visible = false,
+            Margin = new Padding(0, 2, 0, 0)
+        };
+        operationPanel.Controls.Add(_progressBusy, 1, 0);
+
         var buttons = new FlowLayoutPanel
         {
             Dock = DockStyle.Fill,
@@ -182,59 +221,59 @@ public sealed class PreviewForm : Form
             AutoSize = true,
             WrapContents = true
         };
-        root.Controls.Add(buttons, 0, 4);
+        root.Controls.Add(buttons, 0, 5);
 
         var fpsLabel = new Label
         {
             AutoSize = true,
-            Text = "FPS export :",
+            Text = "Export FPS:",
             Margin = new Padding(0, 8, 8, 0),
             Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point)
         };
 
         _btnExportGif = new Button
         {
-            Text = "Exporter en GIF",
+            Text = "Export GIF",
             AutoSize = true,
             Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point),
             BackColor = Color.Gainsboro,
             FlatStyle = FlatStyle.Flat,
             UseVisualStyleBackColor = false
         };
-        _btnExportGif.Click += (_, _) => SelectExportChoice(PreviewExportChoice.Gif);
+        _btnExportGif.Click += async (_, _) => await RequestExportAsync(PreviewExportChoice.Gif);
 
         _btnExportMpeg = new Button
         {
-            Text = "Exporter en MPEG",
+            Text = "Export MPEG",
             AutoSize = true,
             Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point),
             BackColor = Color.Gainsboro,
             FlatStyle = FlatStyle.Flat,
             UseVisualStyleBackColor = false
         };
-        _btnExportMpeg.Click += (_, _) => SelectExportChoice(PreviewExportChoice.Mpeg);
+        _btnExportMpeg.Click += async (_, _) => await RequestExportAsync(PreviewExportChoice.Mpeg);
 
         _btnExportWebM = new Button
         {
-            Text = "Exporter en WebM",
+            Text = "Export WebM",
             AutoSize = true,
             Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point),
             BackColor = Color.Gainsboro,
             FlatStyle = FlatStyle.Flat,
             UseVisualStyleBackColor = false
         };
-        _btnExportWebM.Click += (_, _) => SelectExportChoice(PreviewExportChoice.WebM);
+        _btnExportWebM.Click += async (_, _) => await RequestExportAsync(PreviewExportChoice.WebM);
 
         _btnExportWebP = new Button
         {
-            Text = "Exporter en WebP",
+            Text = "Export WebP",
             AutoSize = true,
             Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point),
             BackColor = Color.Gainsboro,
             FlatStyle = FlatStyle.Flat,
             UseVisualStyleBackColor = false
         };
-        _btnExportWebP.Click += (_, _) => SelectExportChoice(PreviewExportChoice.WebP);
+        _btnExportWebP.Click += async (_, _) => await RequestExportAsync(PreviewExportChoice.WebP);
 
         buttons.Controls.Add(fpsLabel);
         buttons.Controls.Add(_numFps);
@@ -259,7 +298,72 @@ public sealed class PreviewForm : Form
     public PreviewExportChoice ExportChoice { get; private set; }
     public int ExportFps => (int)_numFps.Value;
 
+    public void BeginBusy(string message)
+    {
+        _lblOperationStatus.Text = message;
+        _progressBusy.Visible = true;
+        UseWaitCursor = true;
+        SetInteractiveState(false);
+    }
+
+    public void UpdateBusyMessage(string message)
+    {
+        _lblOperationStatus.Text = message;
+    }
+
+    public void EndBusy(string message = "Ready.")
+    {
+        _lblOperationStatus.Text = message;
+        _progressBusy.Visible = false;
+        UseWaitCursor = false;
+        SetInteractiveState(true);
+    }
+
     private float? SelectedAspectRatio => (_cmbAspectRatio.SelectedItem as CropRatioOption)?.AspectRatio;
+
+    private void ApplyInitialWindowSize()
+    {
+        Rectangle workingArea = Screen.FromPoint(Cursor.Position).WorkingArea;
+        int width = Math.Max(MinimumSize.Width, (int)Math.Round(workingArea.Width * 0.75));
+        int height = Math.Max(MinimumSize.Height, (int)Math.Round(workingArea.Height * 0.75));
+
+        Size = new Size(
+            Math.Min(width, workingArea.Width),
+            Math.Min(height, workingArea.Height));
+    }
+
+    private void SetInteractiveState(bool enabled)
+    {
+        _cmbAspectRatio.Enabled = enabled;
+        _numFps.Enabled = enabled;
+        _btnExportGif.Enabled = enabled;
+        _btnExportMpeg.Enabled = enabled;
+        _btnExportWebM.Enabled = enabled;
+        _btnExportWebP.Enabled = enabled;
+        _pictureBox.Enabled = enabled;
+    }
+
+    private async Task RequestExportAsync(PreviewExportChoice choice)
+    {
+        ExportChoice = choice;
+
+        if (ExportRequestedAsync is null)
+        {
+            DialogResult = DialogResult.OK;
+            Close();
+            return;
+        }
+
+        try
+        {
+            await ExportRequestedAsync(this, choice);
+        }
+        catch
+        {
+            EndBusy("Ready.");
+            throw;
+        }
+    }
 
     private void PictureBox_MouseDown(object? sender, MouseEventArgs e)
     {
@@ -609,16 +713,9 @@ public sealed class PreviewForm : Form
 
     private void UpdateSelectionLabel()
     {
-        string ratioLabel = (_cmbAspectRatio.SelectedItem as CropRatioOption)?.Label ?? "Libre";
+        string ratioLabel = (_cmbAspectRatio.SelectedItem as CropRatioOption)?.Label ?? "Free";
         _lblSelection.Text =
-            $"Selection additionnelle : X={_selectionInImage.X}, Y={_selectionInImage.Y}, W={_selectionInImage.Width}, H={_selectionInImage.Height} | ratio : {ratioLabel} | clic droit = reinitialiser";
-    }
-
-    private void SelectExportChoice(PreviewExportChoice choice)
-    {
-        ExportChoice = choice;
-        DialogResult = DialogResult.OK;
-        Close();
+            $"Additional crop: X={_selectionInImage.X}, Y={_selectionInImage.Y}, W={_selectionInImage.Width}, H={_selectionInImage.Height} | ratio: {ratioLabel} | right click = reset";
     }
 
     protected override void Dispose(bool disposing)

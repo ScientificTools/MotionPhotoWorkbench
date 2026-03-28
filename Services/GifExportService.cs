@@ -12,7 +12,7 @@ public sealed class GifExportService
     public void ExportGif(IReadOnlyList<string> framePaths, string outputGifPath, int delayCs)
     {
         if (framePaths.Count == 0)
-            throw new InvalidOperationException("Aucune image à exporter.");
+            throw new InvalidOperationException("No images to export.");
 
         using SixLabors.ImageSharp.Image<Rgba32> first = SixLabors.ImageSharp.Image.Load<Rgba32>(framePaths[0]);
 

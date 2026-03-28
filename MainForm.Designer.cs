@@ -27,12 +27,6 @@ partial class MainForm
     private ContextMenuStrip contextMenuFrames = null!;
     private ToolStripMenuItem menuToggleKeep = null!;
 
-    private NumericUpDown numCropX = null!;
-    private NumericUpDown numCropY = null!;
-    private NumericUpDown numCropW = null!;
-    private NumericUpDown numCropH = null!;
-    private NumericUpDown numTargetX = null!;
-    private NumericUpDown numTargetY = null!;
     private TrackBar trackBrightness = null!;
     private TrackBar trackContrast = null!;
     private TrackBar trackSaturation = null!;
@@ -60,8 +54,6 @@ partial class MainForm
     private GroupBox groupNavigation = null!;
     private GroupBox groupGif = null!;
     private GroupBox groupAdjustments = null!;
-    private GroupBox groupCrop = null!;
-    private GroupBox groupTarget = null!;
 
     protected override void Dispose(bool disposing)
     {
@@ -101,12 +93,6 @@ partial class MainForm
         contextMenuFrames = new ContextMenuStrip(components);
         menuToggleKeep = new ToolStripMenuItem();
 
-        numCropX = new NumericUpDown();
-        numCropY = new NumericUpDown();
-        numCropW = new NumericUpDown();
-        numCropH = new NumericUpDown();
-        numTargetX = new NumericUpDown();
-        numTargetY = new NumericUpDown();
         trackBrightness = new TrackBar();
         trackContrast = new TrackBar();
         trackSaturation = new TrackBar();
@@ -134,16 +120,7 @@ partial class MainForm
         groupNavigation = new GroupBox();
         groupGif = new GroupBox();
         groupAdjustments = new GroupBox();
-        groupCrop = new GroupBox();
-        groupTarget = new GroupBox();
-
         ((System.ComponentModel.ISupportInitialize)pictureBoxFrame).BeginInit();
-        ((System.ComponentModel.ISupportInitialize)numCropX).BeginInit();
-        ((System.ComponentModel.ISupportInitialize)numCropY).BeginInit();
-        ((System.ComponentModel.ISupportInitialize)numCropW).BeginInit();
-        ((System.ComponentModel.ISupportInitialize)numCropH).BeginInit();
-        ((System.ComponentModel.ISupportInitialize)numTargetX).BeginInit();
-        ((System.ComponentModel.ISupportInitialize)numTargetY).BeginInit();
         splitMain.Panel1.SuspendLayout();
         splitMain.Panel2.SuspendLayout();
         splitMain.SuspendLayout();
@@ -155,8 +132,6 @@ partial class MainForm
         statusLayout.SuspendLayout();
         groupNavigation.SuspendLayout();
         groupGif.SuspendLayout();
-        groupCrop.SuspendLayout();
-        groupTarget.SuspendLayout();
         SuspendLayout();
 
         AutoScaleMode = AutoScaleMode.Font;
@@ -188,15 +163,15 @@ partial class MainForm
         topBar.Controls.Add(btnLoadProject);
         rootLayout.Controls.Add(topBar, 0, 0);
 
-        btnOpenInput.Text = "Ouvrir";
+        btnOpenInput.Text = "Open";
         btnOpenInput.AutoSize = true;
         btnOpenInput.Click += btnOpenInput_Click;
 
-        btnSaveProject.Text = "Sauver projet";
+        btnSaveProject.Text = "Save project";
         btnSaveProject.AutoSize = true;
         btnSaveProject.Click += btnSaveProject_Click;
 
-        btnLoadProject.Text = "Charger projet";
+        btnLoadProject.Text = "Load project";
         btnLoadProject.AutoSize = true;
         btnLoadProject.Click += btnLoadProject_Click;
 
@@ -209,8 +184,10 @@ partial class MainForm
         var framesPanel = new TableLayoutPanel();
         framesPanel.ColumnCount = 1;
         framesPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-        framesPanel.RowCount = 2;
+        framesPanel.RowCount = 4;
         framesPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+        framesPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        framesPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         framesPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         framesPanel.Dock = DockStyle.Fill;
 
@@ -228,10 +205,26 @@ partial class MainForm
         lblFrameLegend.Dock = DockStyle.Fill;
         lblFrameLegend.AutoSize = true;
         lblFrameLegend.Padding = new Padding(4, 8, 4, 0);
-        lblFrameLegend.Text = "Noir: point a placer   |   Vert: point place   |   Rouge: frame ecartee";
+        lblFrameLegend.Text = "Black: anchor to place   |   Green: anchor placed   |   Red: discarded frame";
         framesPanel.Controls.Add(lblFrameLegend, 0, 1);
 
-        menuToggleKeep.Text = "Ecarter / Reintegrer";
+        lblStatus.AutoEllipsis = false;
+        lblStatus.Dock = DockStyle.Fill;
+        lblStatus.TextAlign = ContentAlignment.MiddleLeft;
+        lblStatus.Text = "Prêt.";
+        var helpLabel = new Label
+        {
+            AutoSize = true,
+            Dock = DockStyle.Fill,
+            TextAlign = ContentAlignment.MiddleLeft,
+            AutoEllipsis = false,
+            Padding = new Padding(4, 8, 4, 0),
+            Text = "Clic gauche = point fixe | molette = zoom | glisser = dÃ©placer"
+        };
+        framesPanel.Controls.Add(helpLabel, 0, 2);
+        framesPanel.Controls.Add(lblStatus, 0, 3);
+
+        menuToggleKeep.Text = "Discard / restore";
         menuToggleKeep.Click += menuToggleKeep_Click;
         contextMenuFrames.Items.Add(menuToggleKeep);
         listBoxFrames.ContextMenuStrip = contextMenuFrames;
@@ -282,8 +275,6 @@ partial class MainForm
         settingsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         settingsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         settingsLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
-        settingsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        settingsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         settingsLayout.Dock = DockStyle.Fill;
         settingsLayout.AutoScroll = true;
         settingsLayout.Padding = new Padding(0, 0, 0, 8);
@@ -313,8 +304,8 @@ partial class MainForm
 
         ConfigureNavButton(btnPrev, "<");
         ConfigureNavButton(btnNext, ">");
-        ConfigureNavButton(btnZoomIn, "Zoom +");
-        ConfigureNavButton(btnZoomOut, "Zoom -");
+        ConfigureNavButton(btnZoomIn, "Zoom in");
+        ConfigureNavButton(btnZoomOut, "Zoom out");
         ConfigureNavButton(btnToggleKeep, "Garder / écarter");
 
         btnPrev.Click += btnPrev_Click;
@@ -356,7 +347,7 @@ partial class MainForm
         btnRenderAndExportGif.Click += btnRenderAndExportGif_Click;
         gifLayout.Controls.Add(btnRenderAndExportGif, 0, 0);
 
-        groupAdjustments.Text = "Reglages image";
+        groupAdjustments.Text = "Image adjustments";
         groupAdjustments.Dock = DockStyle.Top;
         groupAdjustments.AutoSize = true;
         groupAdjustments.AutoSizeMode = AutoSizeMode.GrowAndShrink;
@@ -383,102 +374,42 @@ partial class MainForm
         ConfigureAdjustmentTrackBar(trackHighlights, -100, 100, 0);
         ConfigureAdjustmentTrackBar(trackShadows, -100, 100, 0);
 
-        AddLabeledTrackBar(adjustmentsLayout, "Luminosite", trackBrightness, txtBrightnessValue, 0);
-        AddLabeledTrackBar(adjustmentsLayout, "Contraste", trackContrast, txtContrastValue, 1);
+        AddLabeledTrackBar(adjustmentsLayout, "Brightness", trackBrightness, txtBrightnessValue, 0);
+        AddLabeledTrackBar(adjustmentsLayout, "Contrast", trackContrast, txtContrastValue, 1);
         AddLabeledTrackBar(adjustmentsLayout, "Saturation", trackSaturation, txtSaturationValue, 2);
         AddLabeledTrackBar(adjustmentsLayout, "Temperature", trackTemperature, txtTemperatureValue, 3);
-        AddLabeledTrackBar(adjustmentsLayout, "Nettete", trackSharpness, txtSharpnessValue, 4);
-        AddLabeledTrackBar(adjustmentsLayout, "Zones lumineuses", trackHighlights, txtHighlightsValue, 5);
-        AddLabeledTrackBar(adjustmentsLayout, "Ombres", trackShadows, txtShadowsValue, 6);
+        AddLabeledTrackBar(adjustmentsLayout, "Sharpness", trackSharpness, txtSharpnessValue, 4);
+        AddLabeledTrackBar(adjustmentsLayout, "Highlights", trackHighlights, txtHighlightsValue, 5);
+        AddLabeledTrackBar(adjustmentsLayout, "Shadows", trackShadows, txtShadowsValue, 6);
 
-        btnResetAdjustments.Text = "Reinitialiser";
+        btnResetAdjustments.Text = "Reset";
         btnResetAdjustments.Dock = DockStyle.Fill;
         btnResetAdjustments.AutoSize = true;
         btnResetAdjustments.Margin = new Padding(4, 8, 4, 4);
         adjustmentsLayout.Controls.Add(btnResetAdjustments, 0, 7);
         adjustmentsLayout.SetColumnSpan(btnResetAdjustments, 3);
 
-        groupCrop.Text = "Crop";
-        groupCrop.Dock = DockStyle.Top;
-        groupCrop.AutoSize = true;
-        groupCrop.Padding = new Padding(10);
-        settingsLayout.Controls.Add(groupCrop, 0, 4);
-
-        var cropLayout = new TableLayoutPanel();
-        cropLayout.ColumnCount = 2;
-        cropLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 55F));
-        cropLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 45F));
-        cropLayout.RowCount = 4;
-        for (int i = 0; i < 4; i++) cropLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        cropLayout.Dock = DockStyle.Top;
-        cropLayout.AutoSize = true;
-        groupCrop.Controls.Add(cropLayout);
-
-        ConfigureNumeric(numCropX, 0, 10000, 0);
-        ConfigureNumeric(numCropY, 0, 10000, 0);
-        ConfigureNumeric(numCropW, 1, 10000, 300);
-        ConfigureNumeric(numCropH, 1, 10000, 300);
-
-        AddLabeledNumeric(cropLayout, "Crop X", numCropX, 0);
-        AddLabeledNumeric(cropLayout, "Crop Y", numCropY, 1);
-        AddLabeledNumeric(cropLayout, "Crop W", numCropW, 2);
-        AddLabeledNumeric(cropLayout, "Crop H", numCropH, 3);
-
-        groupTarget.Text = "Point cible";
-        groupTarget.Dock = DockStyle.Top;
-        groupTarget.AutoSize = true;
-        groupTarget.Padding = new Padding(10);
-        settingsLayout.Controls.Add(groupTarget, 0, 5);
-
-        var targetLayout = new TableLayoutPanel();
-        targetLayout.ColumnCount = 2;
-        targetLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 55F));
-        targetLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 45F));
-        targetLayout.RowCount = 2;
-        targetLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        targetLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        targetLayout.Dock = DockStyle.Top;
-        targetLayout.AutoSize = true;
-        groupTarget.Controls.Add(targetLayout);
-
-        ConfigureNumeric(numTargetX, 0, 10000, 150);
-        ConfigureNumeric(numTargetY, 0, 10000, 150);
-
-        AddLabeledNumeric(targetLayout, "Target X", numTargetX, 0);
-        AddLabeledNumeric(targetLayout, "Target Y", numTargetY, 1);
-
         var filler = new Panel { Dock = DockStyle.Fill };
         settingsLayout.Controls.Add(filler, 0, 3);
 
-        statusLayout.ColumnCount = 2;
-        statusLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
-        statusLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
+        statusLayout.ColumnCount = 1;
+        statusLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        statusLayout.RowCount = 1;
+        statusLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         statusLayout.Dock = DockStyle.Fill;
         statusLayout.Padding = new Padding(8, 0, 8, 8);
-        rootLayout.Controls.Add(statusLayout, 0, 2);
 
-        lblStatus.AutoEllipsis = true;
-        lblStatus.Dock = DockStyle.Fill;
-        lblStatus.TextAlign = ContentAlignment.MiddleLeft;
-        lblStatus.Text = "Prêt.";
-        statusLayout.Controls.Add(lblStatus, 0, 0);
-
-        var helpLabel = new Label
+        var helpLabelLegacy = new Label
         {
+            AutoSize = true,
             Dock = DockStyle.Fill,
             TextAlign = ContentAlignment.MiddleRight,
             AutoEllipsis = true,
             Text = "Clic gauche = point fixe | molette = zoom | glisser = déplacer"
         };
-        statusLayout.Controls.Add(helpLabel, 1, 0);
+        statusLayout.Controls.Add(helpLabelLegacy, 0, 1);
 
         ((System.ComponentModel.ISupportInitialize)pictureBoxFrame).EndInit();
-        ((System.ComponentModel.ISupportInitialize)numCropX).EndInit();
-        ((System.ComponentModel.ISupportInitialize)numCropY).EndInit();
-        ((System.ComponentModel.ISupportInitialize)numCropW).EndInit();
-        ((System.ComponentModel.ISupportInitialize)numCropH).EndInit();
-        ((System.ComponentModel.ISupportInitialize)numTargetX).EndInit();
-        ((System.ComponentModel.ISupportInitialize)numTargetY).EndInit();
         splitMain.Panel1.ResumeLayout(false);
         splitMain.Panel2.ResumeLayout(false);
         splitMain.ResumeLayout(false);
@@ -488,27 +419,10 @@ partial class MainForm
         groupNavigation.ResumeLayout(false);
         groupGif.ResumeLayout(false);
         groupAdjustments.ResumeLayout(false);
-        groupCrop.ResumeLayout(false);
-        groupTarget.ResumeLayout(false);
         imagePanel.ResumeLayout(false);
         rootLayout.ResumeLayout(false);
         rootLayout.PerformLayout();
         ResumeLayout(false);
-    }
-
-    private static void ConfigureNumeric(NumericUpDown control, decimal min, decimal max, decimal value)
-    {
-        control.Minimum = min;
-        control.Maximum = max;
-        control.Value = value;
-        control.Dock = DockStyle.Fill;
-        control.Margin = new Padding(4);
-    }
-
-    private static void AddLabeledNumeric(TableLayoutPanel layout, string text, NumericUpDown numeric, int row)
-    {
-        layout.Controls.Add(new Label { Text = text, Anchor = AnchorStyles.Left, AutoSize = true, Margin = new Padding(4, 8, 4, 4) }, 0, row);
-        layout.Controls.Add(numeric, 1, row);
     }
 
     private static void ConfigureAdjustmentTrackBar(TrackBar trackBar, int minimum, int maximum, int value)

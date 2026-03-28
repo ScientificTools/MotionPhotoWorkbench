@@ -33,4 +33,4 @@ Helpful issue reports usually include:
 
 ## Licensing
 
-By contributing to this repository, you agree that your contribution is distributed under the repository license.
+By contributing to this repository, you agree that your code contribution is distributed under the repository code license (MIT). Sample media remain under their own license declared in `Samples/LICENSE.md`.

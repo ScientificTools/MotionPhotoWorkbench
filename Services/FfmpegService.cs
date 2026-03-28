@@ -29,7 +29,7 @@ public sealed class FfmpegService
         if (!IsAvailable())
         {
             throw new FileNotFoundException(
-                $"ffmpeg.exe est introuvable. Copie ffmpeg.exe a cote de l'executable de l'application. Chemin attendu : {FfmpegPath}");
+                $"ffmpeg.exe was not found. Copy ffmpeg.exe next to the application executable. Expected path: {FfmpegPath}");
         }
 
         Directory.CreateDirectory(outputDirectory);
@@ -62,7 +62,7 @@ public sealed class FfmpegService
         if (process.ExitCode != 0)
         {
             throw new InvalidOperationException(
-                $"FFmpeg a echoue.{Environment.NewLine}{stdout}{Environment.NewLine}{stderr}");
+                $"FFmpeg failed.{Environment.NewLine}{stdout}{Environment.NewLine}{stderr}");
         }
     }
 
@@ -139,11 +139,11 @@ public sealed class FfmpegService
         if (!IsAvailable())
         {
             throw new FileNotFoundException(
-                $"ffmpeg.exe est introuvable. Copie ffmpeg.exe a cote de l'executable de l'application. Chemin attendu : {FfmpegPath}");
+                $"ffmpeg.exe was not found. Copy ffmpeg.exe next to the application executable. Expected path: {FfmpegPath}");
         }
 
         if (framePaths.Count == 0)
-            throw new InvalidOperationException("Aucune image a exporter.");
+            throw new InvalidOperationException("No images to export.");
 
         string sequenceDir = Path.Combine(Path.GetTempPath(), $"MotionPhotoWorkbench_{Guid.NewGuid():N}");
         Directory.CreateDirectory(sequenceDir);
@@ -188,7 +188,7 @@ public sealed class FfmpegService
             if (process.ExitCode != 0)
             {
                 throw new InvalidOperationException(
-                    $"FFmpeg a echoue.{Environment.NewLine}Journal : {logFilePath ?? "(non disponible)"}{Environment.NewLine}{stdout}{Environment.NewLine}{stderr}");
+                $"FFmpeg failed.{Environment.NewLine}Log: {logFilePath ?? "(not available)"}{Environment.NewLine}{stdout}{Environment.NewLine}{stderr}");
             }
         }
         finally
@@ -208,7 +208,7 @@ public sealed class FfmpegService
         int targetHeight = info.Height - (info.Height % 2);
 
         if (targetWidth <= 0 || targetHeight <= 0)
-            throw new InvalidOperationException($"Dimensions invalides pour l'export video : {info.Width}x{info.Height}.");
+            throw new InvalidOperationException($"Invalid dimensions for video export: {info.Width}x{info.Height}.");
 
         if (targetWidth == info.Width && targetHeight == info.Height)
             return string.Empty;
