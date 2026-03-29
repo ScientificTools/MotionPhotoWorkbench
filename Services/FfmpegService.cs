@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -64,6 +65,46 @@ public sealed class FfmpegService
             throw new InvalidOperationException(
                 $"FFmpeg failed.{Environment.NewLine}{stdout}{Environment.NewLine}{stderr}");
         }
+    }
+
+    public async Task<int?> TryCountFramesAsync(
+        string inputFile,
+        CancellationToken cancellationToken = default)
+    {
+        if (!IsAvailable())
+        {
+            throw new FileNotFoundException(
+                $"ffmpeg.exe was not found. Copy ffmpeg.exe next to the application executable. Expected path: {FfmpegPath}");
+        }
+
+        var psi = new ProcessStartInfo
+        {
+            FileName = FfmpegPath,
+            Arguments = $"-nostdin -i \"{inputFile}\" -map 0:v:0 -f null NUL",
+            RedirectStandardError = true,
+            RedirectStandardOutput = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+
+        using var process = new Process { StartInfo = psi };
+        process.Start();
+
+        Task<string> stdoutTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
+        Task<string> stderrTask = process.StandardError.ReadToEndAsync(cancellationToken);
+
+        await process.WaitForExitAsync(cancellationToken);
+        _ = await stdoutTask;
+        string stderr = await stderrTask;
+
+        MatchCollection matches = Regex.Matches(stderr, @"frame=\s*(\d+)");
+        if (matches.Count == 0)
+            return null;
+
+        string frameText = matches[^1].Groups[1].Value;
+        return int.TryParse(frameText, NumberStyles.Integer, CultureInfo.InvariantCulture, out int frameCount)
+            ? frameCount
+            : null;
     }
 
     public async Task ExportMpegAsync(

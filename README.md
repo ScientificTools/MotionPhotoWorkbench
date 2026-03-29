@@ -21,12 +21,27 @@ This repository is currently focused on Windows and WinForms. The codebase is pu
 - UI technology: `WinForms`
 - Supported OS for the current app: `Windows`
 - Repository status: source-first, no installer provided
+- Recommended distribution model for non-technical users: signed or checksummed ZIP builds published in GitHub `Releases`
 
 ## Requirements
 
 - Windows
 - .NET 8 SDK
 - FFmpeg available next to the compiled executable as `ffmpeg.exe`
+
+## For End Users
+
+If you do not want to install Visual Studio or the .NET SDK, use a packaged build from the repository `Releases` page when one is available.
+
+Recommended end-user flow:
+
+1. Download the latest Windows self-contained ZIP asset from `Releases`.
+2. Extract it to a local folder.
+3. Download `ffmpeg.exe` separately from a trusted source.
+4. Copy `ffmpeg.exe` next to `MotionPhotoWorkbench.exe`.
+5. Launch the application.
+
+This repository intentionally does not bundle FFmpeg. See `THIRD_PARTY_NOTICES.md` and `third_party/ffmpeg/README.md` for the setup details.
 
 ## Build
 
@@ -48,6 +63,31 @@ bin\Debug\net8.0-windows\
 bin\Release\net8.0-windows\
 ```
 
+## Public Release Guidance
+
+For a public repository, it is acceptable and common to publish ready-to-run binaries for non-technical users, provided that the distribution remains transparent and traceable.
+
+Recommended good practices for this repository:
+
+- Publish binaries through GitHub `Releases`, not as committed `.exe` files inside the repository history.
+- Tie each binary release to a Git tag such as `v1.2.3`.
+- Make sure the released ZIP is built from the exact tagged source.
+- Include a short changelog and the source tag or commit in the release notes.
+- Publish a `SHA256` checksum for the ZIP so users can verify integrity.
+- State clearly that `ffmpeg.exe` is required at runtime but is not included.
+- Keep license and third-party notices easy to find from the README and release notes.
+- If possible later, add Windows code signing for additional trust.
+
+This repository includes a GitHub Actions workflow to package a Windows release ZIP and checksum automatically when a version tag is pushed.
+
+Suggested release process:
+
+1. Update the version and documentation.
+2. Commit and push to `master`.
+3. Create and push a tag such as `v1.2.3`.
+4. Let GitHub Actions build the Windows ZIP and checksum.
+5. Publish the GitHub Release with the generated artifacts and release notes.
+
 ## FFmpeg
 
 FFmpeg is required for frame extraction and video export.
@@ -58,6 +98,10 @@ FFmpeg is required for frame extraction and video export.
 - Recommended Windows choice: x64 `release essentials`
 - After download, place `ffmpeg.exe` beside the application executable
 - See `THIRD_PARTY_NOTICES.md` and `third_party/ffmpeg/README.md` for setup guidance
+
+Important distribution note:
+
+- The application ZIP published in GitHub `Releases` should not include FFmpeg unless you explicitly decide to take on that redistribution and license-review responsibility.
 
 ## Samples
 
@@ -102,3 +146,4 @@ This means the software code and the sample media do not share the same redistri
 ## Code License
 
 This project is licensed under the MIT License. See [LICENSE.txt](LICENSE.txt).
+

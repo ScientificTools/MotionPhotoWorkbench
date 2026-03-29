@@ -4,6 +4,7 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Windows.Forms;
 
@@ -43,12 +44,17 @@ public partial class MainForm : Form
     private bool _isAdjustingTrackBar;
     private int _framePreviewRequestId;
     private CancellationTokenSource? _framePreviewCts;
+    private bool _hasShownMissingFfmpegMessage;
+    private bool _isRecoveringProjectCache;
 
     private const float MinImageZoom = 1f;
     private const float MaxImageZoom = 16f;
     private const float ImageZoomFactor = 1.25f;
     private const int ImagePanThreshold = 4;
     private const int AdjustmentDebounceMs = 120;
+    private const int FrameWarningThreshold = 50;
+    private const long ApproxFrameSizeBytes = 5L * 1024 * 1024;
+    private const long WorkEstimateWarningBytes = 200L * 1024 * 1024;
 
     public MainForm()
     {
@@ -86,6 +92,7 @@ public partial class MainForm : Form
         UpdateZoomButtons();
         RefreshFrameList();
         UpdateFrameInfo();
+        UpdateProjectActionButtons();
     }
 
     private void ApplyEnglishUiText()
@@ -93,6 +100,7 @@ public partial class MainForm : Form
         btnOpenInput.Text = "Open";
         btnSaveProject.Text = "Save project";
         btnLoadProject.Text = "Load project";
+        btnCleanCacheProject.Text = "Clean project cache";
         btnZoomIn.Text = "Zoom in";
         btnZoomOut.Text = "Zoom out";
         btnToggleKeep.Text = "Keep / discard";
@@ -148,6 +156,7 @@ public partial class MainForm : Form
     private void MainForm_Shown(object? sender, EventArgs e)
     {
         BeginInvoke(new Action(ApplyResponsiveLayout));
+        BeginInvoke(new Action(ShowMissingFfmpegSetupMessageIfNeeded));
     }
 
     private void MainForm_Resize(object? sender, EventArgs e)
@@ -228,6 +237,7 @@ public partial class MainForm : Form
         };
         NormalizeProjectState(_project);
         SyncAdjustmentControlsFromProject();
+        UpdateProjectActionButtons();
 
         lblStatus.Text = "Preparing extraction...";
         UseWaitCursor = true;
@@ -236,6 +246,13 @@ public partial class MainForm : Form
         {
             string framesDir = Path.Combine(workDir, "frames");
             string sourceForExtraction = ResolveSourceForExtraction(inputFile, workDir, out string sourceMessage);
+            if (!HasExistingFrameCache(workDir) &&
+                !await ConfirmExtractionReadinessAsync(inputFile, workDir, sourceForExtraction, sourceMessage))
+            {
+                lblStatus.Text = "Ready.";
+                return;
+            }
+
             lblStatus.Text = sourceMessage;
             Application.DoEvents();
 
@@ -256,6 +273,7 @@ public partial class MainForm : Form
                 })
                 .ToList();
 
+            UpdateProjectActionButtons();
             RefreshFrameList();
 
             if (_project.Frames.Count > 0)
@@ -653,6 +671,9 @@ public partial class MainForm : Form
                 return;
             }
 
+            if (!await EnsureProjectCacheAvailableAsync("preview or export the project"))
+                return;
+
             _alignmentService.ComputeOffsets(_project);
 
             string alignedDir = Path.Combine(_project.WorkingDirectory, "aligned");
@@ -939,6 +960,12 @@ public partial class MainForm : Form
 
         try
         {
+            if (!await ConfirmProjectLoadReadinessAsync(loaded))
+            {
+                lblStatus.Text = "Ready.";
+                return;
+            }
+
             await EnsureProjectWorkingFilesAsync(loaded);
         }
         catch (Exception ex)
@@ -955,6 +982,7 @@ public partial class MainForm : Form
         _project = loaded;
         SyncAdjustmentControlsFromProject();
         RefreshFrameList();
+        UpdateProjectActionButtons();
 
         if (_project.Frames.Count > 0)
             LoadFrame(0);
@@ -1041,6 +1069,213 @@ public partial class MainForm : Form
                 };
             })
             .ToList();
+    }
+
+    private void UpdateProjectActionButtons()
+    {
+        btnCleanCacheProject.Visible =
+            !string.IsNullOrWhiteSpace(_project.InputFilePath) &&
+            !string.IsNullOrWhiteSpace(_project.WorkingDirectory);
+    }
+
+    private bool EnsureFfmpegAvailableOrShowMessage()
+    {
+        if (_ffmpegService.IsAvailable())
+            return true;
+
+        ShowMissingFfmpegSetupMessage();
+        return false;
+    }
+
+    private void ShowMissingFfmpegSetupMessageIfNeeded()
+    {
+        if (_ffmpegService.IsAvailable() || _hasShownMissingFfmpegMessage)
+            return;
+
+        _hasShownMissingFfmpegMessage = true;
+        ShowMissingFfmpegSetupMessage();
+    }
+
+    private void ShowMissingFfmpegSetupMessage()
+    {
+        string expectedPath = _ffmpegService.FfmpegPath;
+        string message =
+            "ffmpeg.exe was not found." + Environment.NewLine + Environment.NewLine +
+            "Download FFmpeg from one of these pages:" + Environment.NewLine +
+            "https://ffmpeg.org/download.html" + Environment.NewLine +
+            "https://www.gyan.dev/ffmpeg/builds/" + Environment.NewLine + Environment.NewLine +
+            "Then copy ffmpeg.exe next to the application executable." + Environment.NewLine +
+            $"Expected path: {expectedPath}";
+
+        MessageBox.Show(this, message, "FFmpeg required", MessageBoxButtons.OK, MessageBoxIcon.Information);
+    }
+
+    private async Task<bool> ConfirmProjectLoadReadinessAsync(ProjectState project)
+    {
+        if (string.IsNullOrWhiteSpace(project.WorkingDirectory))
+        {
+            project.WorkingDirectory = Path.Combine(
+                Path.GetDirectoryName(project.InputFilePath)!,
+                Path.GetFileNameWithoutExtension(project.InputFilePath) + "_work");
+        }
+
+        if (HasExistingFrameCache(project.WorkingDirectory))
+            return true;
+
+        int? knownFrameCount = project.Frames.Count > 0 ? project.Frames.Count : null;
+
+        if (ProjectHasUsableFrames(project))
+            return await ConfirmExtractionReadinessAsync(project.InputFilePath, project.WorkingDirectory, sourceForExtraction: null, "Using cached frames.", knownFrameCount);
+
+        string sourceForExtraction = ResolveSourceForExtraction(project.InputFilePath, project.WorkingDirectory, out string sourceMessage);
+        return await ConfirmExtractionReadinessAsync(project.InputFilePath, project.WorkingDirectory, sourceForExtraction, sourceMessage, knownFrameCount);
+    }
+
+    private static bool HasExistingFrameCache(string workDir)
+    {
+        if (string.IsNullOrWhiteSpace(workDir) || !Directory.Exists(workDir))
+            return false;
+
+        string framesDir = Path.Combine(workDir, "frames");
+        return Directory.Exists(framesDir) &&
+               Directory.EnumerateFiles(framesDir, "*.png").Any();
+    }
+
+    private async Task<bool> ConfirmExtractionReadinessAsync(
+        string inputFile,
+        string workDir,
+        string? sourceForExtraction,
+        string sourceMessage,
+        int? knownFrameCount = null)
+    {
+        if (!EnsureFfmpegAvailableOrShowMessage())
+            return false;
+
+        int? frameCount = knownFrameCount;
+        if (!frameCount.HasValue && !string.IsNullOrWhiteSpace(sourceForExtraction))
+        {
+            lblStatus.Text = "Analyzing frame count...";
+            Application.DoEvents();
+            frameCount = await _ffmpegService.TryCountFramesAsync(sourceForExtraction);
+        }
+
+        long motionPictureSizeBytes = File.Exists(inputFile) ? new FileInfo(inputFile).Length : 0;
+        long estimatedWorkSizeBytes = frameCount.HasValue ? frameCount.Value * ApproxFrameSizeBytes : 0;
+        long? availableFreeSpaceBytes = TryGetAvailableFreeSpace(workDir);
+        bool exceedsFrameThreshold = frameCount.HasValue && frameCount.Value > FrameWarningThreshold;
+        bool exceedsWorkEstimateThreshold = estimatedWorkSizeBytes > WorkEstimateWarningBytes;
+        bool hasNotEnoughDiskSpace = availableFreeSpaceBytes.HasValue && estimatedWorkSizeBytes > 0 && availableFreeSpaceBytes.Value < estimatedWorkSizeBytes;
+
+        if (hasNotEnoughDiskSpace)
+        {
+            string diskMessage = BuildExtractionWarningMessage(
+                inputFile,
+                sourceMessage,
+                frameCount,
+                motionPictureSizeBytes,
+                estimatedWorkSizeBytes,
+                availableFreeSpaceBytes,
+                includeConfirmationPrompt: false);
+
+            MessageBox.Show(this, diskMessage, "Not enough disk space", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return false;
+        }
+
+        if (!exceedsFrameThreshold && !exceedsWorkEstimateThreshold)
+            return true;
+
+        string warningMessage = BuildExtractionWarningMessage(
+            inputFile,
+            sourceMessage,
+            frameCount,
+            motionPictureSizeBytes,
+            estimatedWorkSizeBytes,
+            availableFreeSpaceBytes,
+            includeConfirmationPrompt: true);
+
+        return MessageBox.Show(
+                this,
+                warningMessage,
+                "Confirm frame extraction",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Warning) == DialogResult.Yes;
+    }
+
+    private static string BuildExtractionWarningMessage(
+        string inputFile,
+        string sourceMessage,
+        int? frameCount,
+        long motionPictureSizeBytes,
+        long estimatedWorkSizeBytes,
+        long? availableFreeSpaceBytes,
+        bool includeConfirmationPrompt)
+    {
+        var builder = new StringBuilder();
+        builder.AppendLine(Path.GetFileName(inputFile));
+        builder.AppendLine();
+        builder.AppendLine(sourceMessage);
+
+        if (frameCount.HasValue)
+            builder.AppendLine($"Detected frames: {frameCount.Value}");
+        else
+            builder.AppendLine("Detected frames: unavailable");
+
+        if (motionPictureSizeBytes > 0)
+            builder.AppendLine($"Motion picture size: {FormatSize(motionPictureSizeBytes)}");
+
+        if (estimatedWorkSizeBytes > 0)
+            builder.AppendLine($"Estimated _work size: about {FormatSize(estimatedWorkSizeBytes)} ({frameCount ?? 0} x 5 MB)");
+
+        if (availableFreeSpaceBytes.HasValue)
+            builder.AppendLine($"Available disk space: {FormatSize(availableFreeSpaceBytes.Value)}");
+
+        if (includeConfirmationPrompt)
+        {
+            builder.AppendLine();
+            builder.Append("Continue loading and extracting frames?");
+        }
+        else
+        {
+            builder.AppendLine();
+            builder.Append("Free some disk space or clean the project cache before continuing.");
+        }
+
+        return builder.ToString();
+    }
+
+    private static long? TryGetAvailableFreeSpace(string path)
+    {
+        try
+        {
+            string? rootPath = Path.GetPathRoot(Path.GetFullPath(path));
+            if (string.IsNullOrWhiteSpace(rootPath))
+                return null;
+
+            var drive = new DriveInfo(rootPath);
+            return drive.AvailableFreeSpace;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static string FormatSize(long bytes)
+    {
+        if (bytes <= 0)
+            return "0 MB";
+
+        string[] units = ["B", "KB", "MB", "GB", "TB"];
+        double value = bytes;
+        int unitIndex = 0;
+
+        while (value >= 1024d && unitIndex < units.Length - 1)
+        {
+            value /= 1024d;
+            unitIndex++;
+        }
+
+        return $"{value:0.#} {units[unitIndex]}";
     }
 
     private static bool ProjectHasUsableFrames(ProjectState project)
@@ -1296,6 +1531,19 @@ public partial class MainForm : Form
 
         int frameIndex = _currentIndex;
         string sourcePath = _project.Frames[frameIndex].SourcePath;
+        if (!File.Exists(sourcePath))
+        {
+            if (!await EnsureProjectCacheAvailableAsync("display the selected frame", frameIndex))
+            {
+                ClearCurrentImage();
+                _currentIndex = -1;
+                listBoxFrames.ClearSelected();
+                UpdateFrameInfo();
+            }
+
+            return;
+        }
+
         NormalizeProjectState(_project);
         ImageAdjustmentSettings adjustments = _project.Adjustments.Clone();
         int requestId = Interlocked.Increment(ref _framePreviewRequestId);
@@ -1347,6 +1595,124 @@ public partial class MainForm : Form
 
         current.Cancel();
         current.Dispose();
+    }
+
+    private async Task<bool> EnsureProjectCacheAvailableAsync(string actionDescription, int? preferredFrameIndex = null)
+    {
+        if (_isRecoveringProjectCache)
+            return false;
+
+        if (ProjectHasUsableFrames(_project))
+            return true;
+
+        lblStatus.Text = "Frame cache missing. Reload the project to rebuild the _work directory.";
+
+        DialogResult reloadChoice = MessageBox.Show(
+            this,
+            "The _work directory was deleted or is incomplete." + Environment.NewLine + Environment.NewLine +
+            $"To {actionDescription}, the project cache must be rebuilt." + Environment.NewLine + Environment.NewLine +
+            "Reload the project now?",
+            "Project cache missing",
+            MessageBoxButtons.YesNo,
+            MessageBoxIcon.Warning);
+
+        if (reloadChoice != DialogResult.Yes)
+            return false;
+
+        if (!EnsureFfmpegAvailableOrShowMessage())
+            return false;
+
+        _isRecoveringProjectCache = true;
+        UseWaitCursor = true;
+        lblStatus.Text = "Reloading project cache...";
+
+        try
+        {
+            await EnsureProjectWorkingFilesAsync(_project);
+            RefreshFrameList();
+            UpdateProjectActionButtons();
+
+            if (_project.Frames.Count == 0)
+            {
+                ClearCurrentImage();
+                _currentIndex = -1;
+                listBoxFrames.ClearSelected();
+                UpdateFrameInfo();
+                lblStatus.Text = "Project cache rebuilt, but no frames were recovered.";
+                return false;
+            }
+
+            int targetIndex = Math.Clamp(preferredFrameIndex ?? _currentIndex, 0, _project.Frames.Count - 1);
+            LoadFrame(targetIndex);
+            lblStatus.Text = "Project cache rebuilt.";
+            MessageBox.Show(this, "The _work directory has been rebuilt and the project was reloaded.", "Project cache rebuilt", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            lblStatus.Text = "Error";
+            return false;
+        }
+        finally
+        {
+            _isRecoveringProjectCache = false;
+            UseWaitCursor = false;
+        }
+    }
+
+    private async void btnCleanCacheProject_Click(object? sender, EventArgs e)
+    {
+        if (string.IsNullOrWhiteSpace(_project.WorkingDirectory))
+            return;
+
+        string workDir = _project.WorkingDirectory;
+        string trimmedWorkDir = workDir.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        string directoryName = Path.GetFileName(trimmedWorkDir);
+
+        if (string.IsNullOrWhiteSpace(directoryName) ||
+            !directoryName.EndsWith("_work", StringComparison.OrdinalIgnoreCase))
+        {
+            MessageBox.Show(this, $"Refusing to delete an unexpected directory:{Environment.NewLine}{workDir}", "Safety check", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        if (!Directory.Exists(workDir))
+        {
+            MessageBox.Show(this, $"The cache directory does not exist:{Environment.NewLine}{workDir}", "Project cache", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+
+        if (MessageBox.Show(
+                this,
+                $"Delete the project cache directory?{Environment.NewLine}{workDir}{Environment.NewLine}{Environment.NewLine}The JSON project file will not be deleted.",
+                "Clean project cache",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Warning) != DialogResult.Yes)
+        {
+            return;
+        }
+
+        UseWaitCursor = true;
+
+        try
+        {
+            await Task.Run(() => Directory.Delete(workDir, true));
+            ClearCurrentImage();
+            _currentIndex = -1;
+            listBoxFrames.ClearSelected();
+            UpdateFrameInfo();
+            lblStatus.Text = "Project cache deleted. Reload the project to rebuild the _work directory.";
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            lblStatus.Text = "Error";
+        }
+        finally
+        {
+            UseWaitCursor = false;
+        }
     }
 
     private static void NormalizeProjectState(ProjectState project)

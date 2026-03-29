@@ -17,6 +17,7 @@ partial class MainForm
     private Button btnRenderAndExportGif = null!;
     private Button btnSaveProject = null!;
     private Button btnLoadProject = null!;
+    private Button btnCleanCacheProject = null!;
 
     private ListBox listBoxFrames = null!;
     private PictureBox pictureBoxFrame = null!;
@@ -83,6 +84,7 @@ partial class MainForm
         btnRenderAndExportGif = new Button();
         btnSaveProject = new Button();
         btnLoadProject = new Button();
+        btnCleanCacheProject = new Button();
 
         listBoxFrames = new ListBox();
         pictureBoxFrame = new PictureBox();
@@ -161,6 +163,7 @@ partial class MainForm
         topBar.Controls.Add(btnOpenInput);
         topBar.Controls.Add(btnSaveProject);
         topBar.Controls.Add(btnLoadProject);
+        topBar.Controls.Add(btnCleanCacheProject);
         rootLayout.Controls.Add(topBar, 0, 0);
 
         btnOpenInput.Text = "Open";
@@ -174,6 +177,11 @@ partial class MainForm
         btnLoadProject.Text = "Load project";
         btnLoadProject.AutoSize = true;
         btnLoadProject.Click += btnLoadProject_Click;
+
+        btnCleanCacheProject.Text = "Clean project cache";
+        btnCleanCacheProject.AutoSize = true;
+        btnCleanCacheProject.Visible = false;
+        btnCleanCacheProject.Click += btnCleanCacheProject_Click;
 
         splitMain.Dock = DockStyle.Fill;
         splitMain.FixedPanel = FixedPanel.Panel1;
