@@ -4,6 +4,8 @@ Desktop tool for extracting frames from a motion photo or video, choosing anchor
 
 This repository is currently focused on Windows and WinForms. The codebase is published as source code for learning, inspection, and contribution, without a support commitment.
 
+End users should download official Windows builds from GitHub `Releases`. For release provenance and signing information, see the `Code Signing Policy` section below.
+
 ## Features
 
 - Open a motion photo compatible JPEG, a regular image, or a video file
@@ -33,6 +35,12 @@ This repository is currently focused on Windows and WinForms. The codebase is pu
 
 If you do not want to install Visual Studio or the .NET SDK, use a packaged build from the repository `Releases` page when one is available.
 
+Minimal user documentation is also available in the repo-managed wiki pages:
+
+- [Get Started](docs/wiki/Get-Started.md)
+- [First Steps](docs/wiki/First-Steps.md)
+- [Installation](docs/wiki/Installation.md)
+
 Recommended end-user flow:
 
 1. Download the latest Windows self-contained ZIP asset from `Releases`.
@@ -61,6 +69,8 @@ Typical output location:
 ```text
 bin\Debug\net8.0-windows\
 bin\Release\net8.0-windows\
+
+or directly in the folder where you unzip a release downloaded from github.
 ```
 
 ## Public Release Guidance
@@ -88,6 +98,30 @@ Suggested release process:
 4. Let GitHub Actions build the Windows ZIP and checksum.
 5. Publish the GitHub Release with the generated artifacts and release notes.
 
+## Code Signing Policy
+
+Official Windows binaries for this project are published through GitHub `Releases`.
+
+Policy:
+
+- Only binaries built from the public source code in this repository are eligible for official signing.
+- Official binaries must be produced from a tagged revision in this repository.
+- The maintainer is responsible for reviewing the tagged source and approving the release artifacts before publication.
+- GitHub `Releases` is the canonical distribution channel for official binaries of this project.
+- Third-party tools that are not part of this repository, including `ffmpeg.exe`, are not signed by this project and are not included in the official release ZIP unless a future release note explicitly says otherwise.
+
+Signing service statement:
+
+- Free code signing for open source releases may be provided by SignPath.io, with a certificate issued by the SignPath Foundation.
+- If a release is not signed, it may still be published as an official release when it is traceable to the public source code and accompanied by release notes and a SHA256 checksum.
+
+Privacy statement:
+
+- MotionPhotoWorkbench is a local desktop application.
+- It does not require a user account.
+- It does not upload project content or personal files to an external service as part of its normal operation.
+- Network access is only expected when the user explicitly downloads dependencies, opens external links, or uses external services outside the application.
+
 ## FFmpeg
 
 FFmpeg is required for frame extraction and video export.
@@ -110,7 +144,7 @@ The repository includes real sample media in `Samples/` so that visitors can qui
 Included samples:
 
 - a motion photo JPEG source
-- exported GIF, MP4, WebM, and animated WebP files
+- exported GIF, MP4, WebM, and animated WebP files created by the application for demonstration.
 - a small HTML page for previewing the exported files in a browser
 
 The previously saved `project.json` sample is intentionally not published because it contained personal absolute filesystem paths.
@@ -146,4 +180,3 @@ This means the software code and the sample media do not share the same redistri
 ## Code License
 
 This project is licensed under the MIT License. See [LICENSE.txt](LICENSE.txt).
-
