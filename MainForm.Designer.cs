@@ -14,6 +14,7 @@ partial class MainForm
     private Button btnZoomIn = null!;
     private Button btnZoomOut = null!;
     private Button btnToggleKeep = null!;
+    private Button btnAutoAnchorOtherFrames = null!;
     private Button btnRenderAndExportGif = null!;
     private Button btnSaveProject = null!;
     private Button btnLoadProject = null!;
@@ -81,6 +82,7 @@ partial class MainForm
         btnZoomIn = new Button();
         btnZoomOut = new Button();
         btnToggleKeep = new Button();
+        btnAutoAnchorOtherFrames = new Button();
         btnRenderAndExportGif = new Button();
         btnSaveProject = new Button();
         btnLoadProject = new Button();
@@ -299,7 +301,8 @@ partial class MainForm
         navLayout.ColumnCount = 2;
         navLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
         navLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
-        navLayout.RowCount = 3;
+        navLayout.RowCount = 4;
+        navLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 33.33F));
         navLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 33.33F));
         navLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 33.33F));
         navLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 33.33F));
@@ -314,12 +317,14 @@ partial class MainForm
         ConfigureNavButton(btnNext, ">");
         ConfigureNavButton(btnZoomIn, "Zoom in");
         ConfigureNavButton(btnZoomOut, "Zoom out");
+        ConfigureNavButton(btnAutoAnchorOtherFrames, "Auto anchor other frames");
         ConfigureNavButton(btnToggleKeep, "Garder / écarter");
 
         btnPrev.Click += btnPrev_Click;
         btnNext.Click += btnNext_Click;
         btnZoomIn.Click += btnZoomIn_Click;
         btnZoomOut.Click += btnZoomOut_Click;
+        btnAutoAnchorOtherFrames.Click += btnAutoAnchorOtherFrames_Click;
         btnToggleKeep.Click += btnToggleKeep_Click;
 
         navLayout.Controls.Add(btnPrev, 0, 0);
@@ -328,6 +333,8 @@ partial class MainForm
         navLayout.Controls.Add(btnZoomOut, 1, 1);
         navLayout.Controls.Add(btnToggleKeep, 0, 2);
         navLayout.SetColumnSpan(btnToggleKeep, 2);
+        navLayout.Controls.Add(btnAutoAnchorOtherFrames, 0, 3);
+        navLayout.SetColumnSpan(btnAutoAnchorOtherFrames, 2);
 
         groupGif.Text = "Export";
         groupGif.Dock = DockStyle.Top;

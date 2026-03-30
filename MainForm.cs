@@ -26,6 +26,7 @@ public partial class MainForm : Form
     private readonly MotionPhotoService _motionPhotoService;
     private readonly ImageAlignmentService _alignmentService;
     private readonly ImageAdjustmentService _imageAdjustmentService;
+    private readonly AnchorAutoDetectionService _anchorAutoDetectionService;
     private readonly GifExportService _gifExportService;
     private readonly ProjectPersistenceService _persistenceService;
     private readonly System.Windows.Forms.Timer _adjustmentPreviewTimer;
@@ -66,6 +67,7 @@ public partial class MainForm : Form
         _motionPhotoService = new MotionPhotoService();
         _alignmentService = new ImageAlignmentService();
         _imageAdjustmentService = new ImageAdjustmentService();
+        _anchorAutoDetectionService = new AnchorAutoDetectionService();
         _gifExportService = new GifExportService();
         _persistenceService = new ProjectPersistenceService();
         _adjustmentPreviewTimer = new System.Windows.Forms.Timer { Interval = AdjustmentDebounceMs };
@@ -79,10 +81,13 @@ public partial class MainForm : Form
         btnPrev.MinimumSize = new Size(0, 40);
         btnNext.MinimumSize = new Size(0, 40);
         btnToggleKeep.MinimumSize = new Size(0, 40);
+        btnAutoAnchorOtherFrames.MinimumSize = new Size(0, 40);
         btnPrev.Height = 40;
         btnNext.Height = 40;
         btnToggleKeep.Height = 40;
+        btnAutoAnchorOtherFrames.Height = 40;
         btnToggleKeep.MinimumSize = new Size(0, 44);
+        btnAutoAnchorOtherFrames.MinimumSize = new Size(0, 44);
         btnRenderAndExportGif.AutoSize = false;
         btnRenderAndExportGif.MinimumSize = new Size(0, 48);
         btnRenderAndExportGif.Height = 48;
@@ -104,6 +109,7 @@ public partial class MainForm : Form
         btnZoomIn.Text = "Zoom in";
         btnZoomOut.Text = "Zoom out";
         btnToggleKeep.Text = "Keep / discard";
+        btnAutoAnchorOtherFrames.Text = "Auto anchor other frames";
         btnRenderAndExportGif.Text = "Preview / export";
         btnResetAdjustments.Text = "Reset";
         lblFrameLegend.Text = "Black: anchor to place   |   Green: anchor placed   |   Red: discarded frame";
@@ -387,6 +393,7 @@ public partial class MainForm : Form
         if (_currentIndex < 0 || _currentIndex >= _project.Frames.Count)
         {
             lblFrameInfo.Text = "No frame selected";
+            UpdateAutoAnchorButtonVisibility();
             return;
         }
 
@@ -395,6 +402,18 @@ public partial class MainForm : Form
             $"Frame {_currentIndex + 1}/{_project.Frames.Count} | " +
             $"Keep={frame.IsKept} | " +
             $"Anchor={(frame.AnchorPoint.HasValue ? $"{frame.AnchorPoint.Value.X:0.0},{frame.AnchorPoint.Value.Y:0.0}" : "not set")}";
+        UpdateAutoAnchorButtonVisibility();
+    }
+
+    private void UpdateAutoAnchorButtonVisibility()
+    {
+        bool isVisible =
+            _currentIndex >= 0 &&
+            _currentIndex < _project.Frames.Count &&
+            _project.Frames[_currentIndex].AnchorPoint.HasValue;
+
+        btnAutoAnchorOtherFrames.Visible = isVisible;
+        btnAutoAnchorOtherFrames.Enabled = isVisible;
     }
 
     private void listBoxFrames_SelectedIndexChanged(object sender, EventArgs e)
@@ -659,6 +678,55 @@ public partial class MainForm : Form
         UpdateFrameInfo();
         RefreshFrameList();
         listBoxFrames.SelectedIndex = _currentIndex;
+    }
+
+    private async void btnAutoAnchorOtherFrames_Click(object? sender, EventArgs e)
+    {
+        if (_currentIndex < 0 || _currentIndex >= _project.Frames.Count)
+            return;
+
+        FrameInfo referenceFrame = _project.Frames[_currentIndex];
+        if (!referenceFrame.AnchorPoint.HasValue)
+            return;
+
+        if (!await EnsureProjectCacheAvailableAsync("auto-anchor the other frames", _currentIndex))
+            return;
+
+        int candidateCount = _project.Frames.Count(frame => frame.IsKept && frame.Index != referenceFrame.Index);
+
+        if (candidateCount == 0)
+        {
+            lblStatus.Text = "No other active frames to auto-anchor.";
+            return;
+        }
+
+        lblStatus.Text = $"Auto-anchoring {candidateCount} frame(s)...";
+        UseWaitCursor = true;
+        btnAutoAnchorOtherFrames.Enabled = false;
+
+        try
+        {
+            AutoAnchorBatchResult result = await Task.Run(() => AutoAnchorFrames(referenceFrame));
+
+            RefreshFrameList();
+            if (_currentIndex >= 0 && _currentIndex < _project.Frames.Count)
+                listBoxFrames.SelectedIndex = _currentIndex;
+
+            UpdateFrameInfo();
+            pictureBoxFrame.Invalidate();
+
+            lblStatus.Text = $"Auto-anchor completed. Updated {result.UpdatedCount} frame(s), {result.FailedCount} failed.";
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, ex.Message, "Auto anchor", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            lblStatus.Text = "Auto-anchor failed.";
+        }
+        finally
+        {
+            UseWaitCursor = false;
+            UpdateAutoAnchorButtonVisibility();
+        }
     }
 
     private async void btnRenderAndExportGif_Click(object sender, EventArgs e)
@@ -1320,6 +1388,68 @@ public partial class MainForm : Form
         return new Bitmap(bitmap);
     }
 
+    private AutoAnchorBatchResult AutoAnchorFrames(FrameInfo referenceFrame)
+    {
+        if (!referenceFrame.AnchorPoint.HasValue)
+            return new AutoAnchorBatchResult(0, 0);
+
+        if (!File.Exists(referenceFrame.SourcePath))
+            throw new FileNotFoundException($"Reference frame not found: {referenceFrame.SourcePath}");
+
+        List<FrameInfo> keptFrames = _project.Frames
+            .Where(frame => frame.IsKept)
+            .OrderBy(frame => frame.Index)
+            .ToList();
+
+        int referencePosition = keptFrames.FindIndex(frame => frame.Index == referenceFrame.Index);
+        if (referencePosition < 0)
+            return new AutoAnchorBatchResult(0, 0);
+
+        AutoAnchorBatchResult forwardResult = AutoAnchorInDirection(keptFrames, referencePosition, step: 1);
+        AutoAnchorBatchResult backwardResult = AutoAnchorInDirection(keptFrames, referencePosition, step: -1);
+
+        return new AutoAnchorBatchResult(
+            forwardResult.UpdatedCount + backwardResult.UpdatedCount,
+            forwardResult.FailedCount + backwardResult.FailedCount);
+    }
+
+    private AutoAnchorBatchResult AutoAnchorInDirection(IReadOnlyList<FrameInfo> keptFrames, int startIndex, int step)
+    {
+        int updatedCount = 0;
+        int failedCount = 0;
+        FrameInfo currentReferenceFrame = keptFrames[startIndex];
+        PointF currentReferenceAnchor = currentReferenceFrame.AnchorPoint!.Value;
+
+        for (int index = startIndex + step; index >= 0 && index < keptFrames.Count; index += step)
+        {
+            FrameInfo candidateFrame = keptFrames[index];
+
+            if (!File.Exists(candidateFrame.SourcePath))
+            {
+                failedCount++;
+                continue;
+            }
+
+            AutoAnchorSearchResult searchResult = _anchorAutoDetectionService.FindAnchor(
+                currentReferenceFrame.SourcePath,
+                currentReferenceAnchor,
+                candidateFrame.SourcePath);
+
+            if (!searchResult.Success || !searchResult.AnchorPoint.HasValue)
+            {
+                failedCount++;
+                continue;
+            }
+
+            candidateFrame.AnchorPoint = searchResult.AnchorPoint.Value;
+            currentReferenceFrame = candidateFrame;
+            currentReferenceAnchor = searchResult.AnchorPoint.Value;
+            updatedCount++;
+        }
+
+        return new AutoAnchorBatchResult(updatedCount, failedCount);
+    }
+
     private void WireAdjustmentEvents()
     {
         trackBrightness.ValueChanged += AdjustmentTrackBar_ValueChanged;
@@ -1770,6 +1900,8 @@ public partial class MainForm : Form
     }
 
     private sealed record AdjustmentTextBoxBinding(TrackBar TrackBar, bool AllowNegative);
+
+    private sealed record AutoAnchorBatchResult(int UpdatedCount, int FailedCount);
 
     private void ResetImageViewport()
     {
