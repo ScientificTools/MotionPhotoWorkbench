@@ -284,12 +284,14 @@ public sealed class PreviewForm : Form
 
         AcceptButton = _btnExportGif;
 
-        _selectionInImage = initialSelection.HasValue
-            ? Rectangle.Intersect(EnsureMinimumSelection(initialSelection.Value), _imageBounds)
+        bool hasInitialSelection = initialSelection.HasValue;
+        Rectangle startingSelection = initialSelection ?? _imageBounds;
+        _selectionInImage = hasInitialSelection
+            ? Rectangle.Intersect(EnsureMinimumSelection(startingSelection), _imageBounds)
             : _imageBounds;
 
         if (_cmbAspectRatio.Items.Count > 0)
-            _cmbAspectRatio.SelectedIndex = 0;
+            _cmbAspectRatio.SelectedIndex = hasInitialSelection ? 1 : 0;
         _selectionInImage = FitSelectionToAspectRatio(_selectionInImage, SelectedAspectRatio);
         UpdateSelectionLabel();
     }
@@ -382,7 +384,7 @@ public sealed class PreviewForm : Form
             return;
         }
 
-        var imagePoint = ImageViewerMath.ClientToImage(e.Location, _pictureBox.ClientSize, _pictureBox.Image.Size);
+        var imagePoint = HelperGraphic.ClientToImage(e.Location, _pictureBox.ClientSize, _pictureBox.Image.Size);
         if (!imagePoint.HasValue)
             return;
 
@@ -401,7 +403,7 @@ public sealed class PreviewForm : Form
         if (_pictureBox.Image is null)
             return;
 
-        var imagePoint = ImageViewerMath.ClientToImage(e.Location, _pictureBox.ClientSize, _pictureBox.Image.Size)
+        var imagePoint = HelperGraphic.ClientToImage(e.Location, _pictureBox.ClientSize, _pictureBox.Image.Size)
             ?? ClampClientPointToImage(e.Location);
         Point imagePointRounded = Point.Round(imagePoint);
 
@@ -488,19 +490,7 @@ public sealed class PreviewForm : Form
         if (_pictureBox.Image is null)
             return PointF.Empty;
 
-        Size imageSize = _pictureBox.Image.Size;
-        Size clientSize = _pictureBox.ClientSize;
-        float ratioX = (float)clientSize.Width / imageSize.Width;
-        float ratioY = (float)clientSize.Height / imageSize.Height;
-        float scale = Math.Min(ratioX, ratioY);
-        float displayedWidth = imageSize.Width * scale;
-        float displayedHeight = imageSize.Height * scale;
-        float offsetX = (clientSize.Width - displayedWidth) / 2f;
-        float offsetY = (clientSize.Height - displayedHeight) / 2f;
-
-        float x = Math.Clamp((clientPoint.X - offsetX) / scale, 0, imageSize.Width - 1);
-        float y = Math.Clamp((clientPoint.Y - offsetY) / scale, 0, imageSize.Height - 1);
-        return new PointF(x, y);
+        return HelperGraphic.ClampClientPointToImage(clientPoint, _pictureBox.ClientSize, _pictureBox.Image.Size);
     }
 
     private Rectangle ImageToClientRectangle(Rectangle imageRect)
@@ -508,22 +498,7 @@ public sealed class PreviewForm : Form
         if (_pictureBox.Image is null)
             return Rectangle.Empty;
 
-        Size imageSize = _pictureBox.Image.Size;
-        Size clientSize = _pictureBox.ClientSize;
-        float ratioX = (float)clientSize.Width / imageSize.Width;
-        float ratioY = (float)clientSize.Height / imageSize.Height;
-        float scale = Math.Min(ratioX, ratioY);
-        float displayedWidth = imageSize.Width * scale;
-        float displayedHeight = imageSize.Height * scale;
-        float offsetX = (clientSize.Width - displayedWidth) / 2f;
-        float offsetY = (clientSize.Height - displayedHeight) / 2f;
-
-        int left = (int)MathF.Round(offsetX + (imageRect.Left * scale));
-        int top = (int)MathF.Round(offsetY + (imageRect.Top * scale));
-        int right = (int)MathF.Round(offsetX + (imageRect.Right * scale));
-        int bottom = (int)MathF.Round(offsetY + (imageRect.Bottom * scale));
-
-        return Rectangle.FromLTRB(left, top, Math.Max(left + 1, right), Math.Max(top + 1, bottom));
+        return HelperGraphic.ImageToClientRectangle(imageRect, _pictureBox.ClientSize, _pictureBox.Image.Size);
     }
 
     private Rectangle EnsureMinimumSelection(Rectangle rectangle)

@@ -60,7 +60,7 @@ public partial class MainForm : Form
     public MainForm()
     {
         InitializeComponent();
-        ApplyEnglishUiText();
+        ConfigureUiState();
 
         string ffmpegPath = Path.Combine(AppContext.BaseDirectory, "ffmpeg.exe");
         _ffmpegService = new FfmpegService(ffmpegPath);
@@ -100,19 +100,8 @@ public partial class MainForm : Form
         UpdateProjectActionButtons();
     }
 
-    private void ApplyEnglishUiText()
+    private void ConfigureUiState()
     {
-        btnOpenInput.Text = "Open";
-        btnSaveProject.Text = "Save project";
-        btnLoadProject.Text = "Load project";
-        btnCleanCacheProject.Text = "Clean project cache";
-        btnZoomIn.Text = "Zoom in";
-        btnZoomOut.Text = "Zoom out";
-        btnToggleKeep.Text = "Keep / discard";
-        btnAutoAnchorOtherFrames.Text = "Auto anchor other frames";
-        btnRenderAndExportGif.Text = "Preview / export";
-        btnResetAdjustments.Text = "Reset";
-        lblFrameLegend.Text = "Black: anchor to place   |   Green: anchor placed   |   Red: discarded frame";
         lblStatus.Text = "Ready.";
         lblStatus.AutoSize = true;
         lblStatus.Dock = DockStyle.Top;
@@ -120,38 +109,6 @@ public partial class MainForm : Form
         lblStatus.Padding = new Padding(0, 4, 0, 4);
         lblStatus.ForeColor = Color.ForestGreen;
         lblStatus.TextAlign = ContentAlignment.TopLeft;
-        lblFrameInfo.Text = "No frame selected";
-        menuToggleKeep.Text = "Discard / restore";
-        groupNavigation.Text = "Navigation";
-        groupGif.Text = "Export";
-        groupAdjustments.Text = "Image adjustments";
-        foreach (Control control in Controls)
-            TranslateControlTree(control);
-    }
-
-    private static void TranslateControlTree(Control control)
-    {
-        switch (control)
-        {
-            case Label label:
-                label.Text = label.Text switch
-                {
-                    "Luminosite" => "Brightness",
-                    "Contraste" => "Contrast",
-                    "Nettete" => "Sharpness",
-                    "Zones lumineuses" => "Highlights",
-                    "Ombres" => "Shadows",
-                    "Clic gauche = point fixe | molette = zoom | glisser = déplacer" => "Left click = anchor point | wheel = zoom | drag = pan",
-                    "Clic gauche = point fixe | molette = zoom | glisser = dÃ©placer" => "Left click = anchor point | wheel = zoom | drag = pan",
-                    "Aucune frame sélectionnée" => "No frame selected",
-                    "Aucune frame sÃ©lectionnÃ©e" => "No frame selected",
-                    _ => label.Text
-                };
-                break;
-        }
-
-        foreach (Control child in control.Controls)
-            TranslateControlTree(child);
     }
 
     private void MainForm_Load(object? sender, EventArgs e)
@@ -568,7 +525,7 @@ public partial class MainForm : Form
         if (e.Button != MouseButtons.Left || wasPanning || _currentBitmap is null)
             return;
 
-        var imgPoint = ImageViewerMath.ClientToImage(
+        var imgPoint = HelperGraphic.ClientToImage(
             e.Location,
             pictureBoxFrame.ClientSize,
             _currentBitmap.Size,
@@ -605,7 +562,7 @@ public partial class MainForm : Form
         e.Graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
         e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
 
-        RectangleF imageBounds = ImageViewerMath.GetImageDisplayBounds(
+        RectangleF imageBounds = HelperGraphic.GetImageDisplayBounds(
             pictureBoxFrame.ClientSize,
             _currentBitmap.Size,
             _imageZoom,
@@ -620,7 +577,7 @@ public partial class MainForm : Form
         if (!frame.AnchorPoint.HasValue)
             return;
 
-        var clientPoint = ImageViewerMath.ImageToClient(
+        var clientPoint = HelperGraphic.ImageToClient(
             pictureBoxFrame.ClientSize,
             _currentBitmap.Size,
             frame.AnchorPoint.Value,
@@ -630,8 +587,7 @@ public partial class MainForm : Form
         if (clientPoint is null)
             return;
 
-        float crossHalfSize = Math.Clamp(8f + ((_imageZoom - 1f) * 3f), 8f, 28f);
-        float penWidth = Math.Clamp(2f + ((_imageZoom - 1f) * 0.35f), 2f, 5f);
+        var (crossHalfSize, penWidth) = HelperGraphic.GetAnchorMarkerStyle(_imageZoom);
 
         using var outlinePen = new Pen(Color.White, penWidth + 2f);
         using var pen = new Pen(Color.Red, penWidth);
@@ -748,9 +704,9 @@ public partial class MainForm : Form
             lblStatus.Text = "Rendering aligned images...";
             UseWaitCursor = true;
 
+            Rectangle previousOutputCrop = _project.OutputCrop;
             var renderResult = await _alignmentService.RenderAlignedFramesAsync(_project, alignedDir);
             var rendered = renderResult.FramePaths.ToList();
-            _project.OutputCrop = renderResult.IntersectionCrop;
 
             if (rendered.Count == 0)
             {
@@ -759,7 +715,8 @@ public partial class MainForm : Form
             }
 
             List<string> alignedBase = renderResult.FramePaths.ToList();
-            Rectangle additionalCrop = new(0, 0, renderResult.IntersectionCrop.Width, renderResult.IntersectionCrop.Height);
+            Rectangle additionalCrop = TryCreatePreviewInitialCrop(renderResult.IntersectionCrop, previousOutputCrop)
+                ?? new Rectangle(0, 0, renderResult.IntersectionCrop.Width, renderResult.IntersectionCrop.Height);
 
             while (true)
             {
@@ -1864,6 +1821,29 @@ public partial class MainForm : Form
         return Math.Max(1, (int)Math.Round(100d / safeFps, MidpointRounding.AwayFromZero));
     }
 
+    private static Rectangle? TryCreatePreviewInitialCrop(Rectangle intersectionCrop, Rectangle savedOutputCrop)
+    {
+        if (intersectionCrop.Width <= 0 || intersectionCrop.Height <= 0)
+            return null;
+
+        if (savedOutputCrop.Width <= 0 || savedOutputCrop.Height <= 0)
+            return null;
+
+        if (savedOutputCrop.Left < intersectionCrop.Left ||
+            savedOutputCrop.Top < intersectionCrop.Top ||
+            savedOutputCrop.Right > intersectionCrop.Right ||
+            savedOutputCrop.Bottom > intersectionCrop.Bottom)
+        {
+            return null;
+        }
+
+        return new Rectangle(
+            savedOutputCrop.X - intersectionCrop.X,
+            savedOutputCrop.Y - intersectionCrop.Y,
+            savedOutputCrop.Width,
+            savedOutputCrop.Height);
+    }
+
     private static Color GetFrameListColor(FrameInfo frame)
     {
         if (!frame.IsKept)
@@ -1925,7 +1905,7 @@ public partial class MainForm : Form
             return;
         }
 
-        SDPointF? focusImagePoint = ImageViewerMath.ClientToImage(
+        SDPointF? focusImagePoint = HelperGraphic.ClientToImage(
             focusPoint,
             pictureBoxFrame.ClientSize,
             _currentBitmap.Size,
@@ -1935,20 +1915,12 @@ public partial class MainForm : Form
         _imageZoom = clampedZoom;
 
         if (focusImagePoint.HasValue)
-        {
-            RectangleF centeredBounds = ImageViewerMath.GetImageDisplayBounds(
+            _imagePanOffset = HelperGraphic.GetPanOffsetForZoomFocus(
+                focusPoint,
                 pictureBoxFrame.ClientSize,
                 _currentBitmap.Size,
                 _imageZoom,
-                SDPointF.Empty);
-
-            float desiredLeft = focusPoint.X - ((focusImagePoint.Value.X / _currentBitmap.Width) * centeredBounds.Width);
-            float desiredTop = focusPoint.Y - ((focusImagePoint.Value.Y / _currentBitmap.Height) * centeredBounds.Height);
-
-            _imagePanOffset = new SDPointF(
-                desiredLeft - centeredBounds.Left,
-                desiredTop - centeredBounds.Top);
-        }
+                focusImagePoint.Value);
 
         ClampImagePanOffset();
         UpdateZoomButtons();
@@ -1963,18 +1935,11 @@ public partial class MainForm : Form
             return;
         }
 
-        RectangleF centeredBounds = ImageViewerMath.GetImageDisplayBounds(
+        _imagePanOffset = HelperGraphic.ClampPanOffset(
             pictureBoxFrame.ClientSize,
             _currentBitmap.Size,
             _imageZoom,
-            SDPointF.Empty);
-
-        float maxPanX = Math.Max(0f, (centeredBounds.Width - pictureBoxFrame.ClientSize.Width) / 2f);
-        float maxPanY = Math.Max(0f, (centeredBounds.Height - pictureBoxFrame.ClientSize.Height) / 2f);
-
-        _imagePanOffset = new SDPointF(
-            Math.Clamp(_imagePanOffset.X, -maxPanX, maxPanX),
-            Math.Clamp(_imagePanOffset.Y, -maxPanY, maxPanY));
+            _imagePanOffset);
     }
 
     private void UpdateZoomButtons()

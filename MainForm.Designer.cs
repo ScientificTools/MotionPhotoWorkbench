@@ -221,7 +221,7 @@ partial class MainForm
         lblStatus.AutoEllipsis = false;
         lblStatus.Dock = DockStyle.Fill;
         lblStatus.TextAlign = ContentAlignment.MiddleLeft;
-        lblStatus.Text = "Prêt.";
+        lblStatus.Text = "Ready.";
         var helpLabel = new Label
         {
             AutoSize = true,
@@ -229,7 +229,7 @@ partial class MainForm
             TextAlign = ContentAlignment.MiddleLeft,
             AutoEllipsis = false,
             Padding = new Padding(4, 8, 4, 0),
-            Text = "Clic gauche = point fixe | molette = zoom | glisser = dÃ©placer"
+            Text = "Left click = anchor point | wheel = zoom | drag = pan"
         };
         framesPanel.Controls.Add(helpLabel, 0, 2);
         framesPanel.Controls.Add(lblStatus, 0, 3);
@@ -262,7 +262,7 @@ partial class MainForm
         lblFrameInfo.Dock = DockStyle.Fill;
         lblFrameInfo.AutoEllipsis = true;
         lblFrameInfo.TextAlign = ContentAlignment.MiddleLeft;
-        lblFrameInfo.Text = "Aucune frame sélectionnée";
+        lblFrameInfo.Text = "No frame selected";
         imageHeaderPanel.Controls.Add(lblFrameInfo);
 
         pictureBoxFrame.Dock = DockStyle.Fill;
@@ -318,7 +318,7 @@ partial class MainForm
         ConfigureNavButton(btnZoomIn, "Zoom in");
         ConfigureNavButton(btnZoomOut, "Zoom out");
         ConfigureNavButton(btnAutoAnchorOtherFrames, "Auto anchor other frames");
-        ConfigureNavButton(btnToggleKeep, "Garder / écarter");
+        ConfigureNavButton(btnToggleKeep, "Keep / discard");
 
         btnPrev.Click += btnPrev_Click;
         btnNext.Click += btnNext_Click;
@@ -352,7 +352,7 @@ partial class MainForm
         gifLayout.AutoSize = true;
         gifLayout.AutoSizeMode = AutoSizeMode.GrowAndShrink;
         groupGif.Controls.Add(gifLayout);
-        btnRenderAndExportGif.Text = "Apercu / export";
+        btnRenderAndExportGif.Text = "Preview / export";
         btnRenderAndExportGif.Dock = DockStyle.Fill;
         btnRenderAndExportGif.Height = 34;
         btnRenderAndExportGif.Font = new Font("Segoe UI", 10F, FontStyle.Bold, GraphicsUnit.Point);
@@ -420,7 +420,7 @@ partial class MainForm
             Dock = DockStyle.Fill,
             TextAlign = ContentAlignment.MiddleRight,
             AutoEllipsis = true,
-            Text = "Clic gauche = point fixe | molette = zoom | glisser = déplacer"
+            Text = "Left click = anchor point | wheel = zoom | drag = pan"
         };
         statusLayout.Controls.Add(helpLabelLegacy, 0, 1);
 
