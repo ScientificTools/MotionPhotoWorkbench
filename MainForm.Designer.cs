@@ -58,6 +58,7 @@ partial class MainForm
     private TableLayoutPanel settingsLayout = null!;
     private Panel imageHeaderPanel = null!;
     private GroupBox groupNavigation = null!;
+    private GroupBox groupStabilization = null!;
     private GroupBox groupGif = null!;
     private GroupBox groupAdjustments = null!;
 
@@ -129,9 +130,10 @@ partial class MainForm
         imagePanel = new TableLayoutPanel();
         settingsLayout = new TableLayoutPanel();
         imageHeaderPanel = new Panel();
-        groupNavigation = new GroupBox();
-        groupGif = new GroupBox();
-        groupAdjustments = new GroupBox();
+        groupNavigation = new StyledGroupBox();
+        groupStabilization = new StyledGroupBox();
+        groupGif = new StyledGroupBox();
+        groupAdjustments = new StyledGroupBox();
         ((System.ComponentModel.ISupportInitialize)pictureBoxFrame).BeginInit();
         ((System.ComponentModel.ISupportInitialize)numAutoAnchorStopThreshold).BeginInit();
         ((System.ComponentModel.ISupportInitialize)numAutoAnchorDoubtThreshold).BeginInit();
@@ -145,6 +147,7 @@ partial class MainForm
         imagePanel.SuspendLayout();
         statusLayout.SuspendLayout();
         groupNavigation.SuspendLayout();
+        groupStabilization.SuspendLayout();
         groupGif.SuspendLayout();
         SuspendLayout();
 
@@ -196,9 +199,10 @@ partial class MainForm
         btnCleanCacheProject.Click += btnCleanCacheProject_Click;
 
         splitMain.Dock = DockStyle.Fill;
+        splitMain.Size = new Size(1200, 800);
         splitMain.FixedPanel = FixedPanel.Panel1;
         splitMain.Panel1MinSize = 100;
-        splitMain.Panel2MinSize = 100;
+        splitMain.Panel2MinSize = 200;
         rootLayout.Controls.Add(splitMain, 0, 1);
 
         var framesPanel = new TableLayoutPanel();
@@ -250,9 +254,10 @@ partial class MainForm
         listBoxFrames.ContextMenuStrip = contextMenuFrames;
 
         splitRight.Dock = DockStyle.Fill;
+        splitRight.Size = new Size(1000, 800);
         splitRight.FixedPanel = FixedPanel.Panel2;
-        splitRight.Panel1MinSize = 100;
-        splitRight.Panel2MinSize = 100;
+        splitRight.Panel1MinSize = 150;
+        splitRight.Panel2MinSize = 340;
         splitMain.Panel2.Controls.Add(splitRight);
 
         imagePanel.ColumnCount = 1;
@@ -290,7 +295,8 @@ partial class MainForm
 
         settingsLayout.ColumnCount = 1;
         settingsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-        settingsLayout.RowCount = 6;
+        settingsLayout.RowCount = 5;
+        settingsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         settingsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         settingsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         settingsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -304,25 +310,27 @@ partial class MainForm
         groupNavigation.Dock = DockStyle.Top;
         groupNavigation.AutoSize = true;
         groupNavigation.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-        groupNavigation.Padding = new Padding(10);
+        groupNavigation.Padding = new Padding(10, 16, 10, 10);
         settingsLayout.Controls.Add(groupNavigation, 0, 0);
 
         var navLayout = new TableLayoutPanel();
         navLayout.ColumnCount = 2;
         navLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
         navLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
-        navLayout.RowCount = 5;
-        navLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 20F));
-        navLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 20F));
-        navLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 20F));
-        navLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 20F));
-        navLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 20F));
+        navLayout.RowCount = 3;
+        navLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        navLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
+        navLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
         navLayout.Dock = DockStyle.Fill;
         navLayout.AutoSize = true;
         navLayout.AutoSizeMode = AutoSizeMode.GrowAndShrink;
         navLayout.Padding = new Padding(4);
         navLayout.Margin = new Padding(0);
         groupNavigation.Controls.Add(navLayout);
+
+        var navHelpLabel = CreateHelpLabel("Drag image = pan  ·  Mouse wheel = zoom in/out");
+        navLayout.Controls.Add(navHelpLabel, 0, 0);
+        navLayout.SetColumnSpan(navHelpLabel, 2);
 
         ConfigureNavButton(btnPrev, "<");
         ConfigureNavButton(btnNext, ">");
@@ -338,14 +346,45 @@ partial class MainForm
         btnAutoAnchorOtherFrames.Click += btnAutoAnchorOtherFrames_Click;
         btnToggleKeep.Click += btnToggleKeep_Click;
 
-        navLayout.Controls.Add(btnPrev, 0, 0);
-        navLayout.Controls.Add(btnNext, 1, 0);
-        navLayout.Controls.Add(btnZoomIn, 0, 1);
-        navLayout.Controls.Add(btnZoomOut, 1, 1);
-        navLayout.Controls.Add(btnToggleKeep, 0, 2);
-        navLayout.SetColumnSpan(btnToggleKeep, 2);
-        navLayout.Controls.Add(btnAutoAnchorOtherFrames, 0, 3);
-        navLayout.SetColumnSpan(btnAutoAnchorOtherFrames, 2);
+        navLayout.Controls.Add(btnPrev, 0, 1);
+        navLayout.Controls.Add(btnNext, 1, 1);
+        navLayout.Controls.Add(btnZoomIn, 0, 2);
+        navLayout.Controls.Add(btnZoomOut, 1, 2);
+
+        groupStabilization.Text = "Stabilization";
+        groupStabilization.Dock = DockStyle.Top;
+        groupStabilization.AutoSize = true;
+        groupStabilization.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        groupStabilization.Padding = new Padding(10, 16, 10, 10);
+        settingsLayout.Controls.Add(groupStabilization, 0, 1);
+
+        var stabLayout = new TableLayoutPanel();
+        stabLayout.ColumnCount = 2;
+        stabLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
+        stabLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
+        stabLayout.RowCount = 5;
+        stabLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        stabLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        stabLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        stabLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        stabLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        stabLayout.Dock = DockStyle.Fill;
+        stabLayout.AutoSize = true;
+        stabLayout.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        stabLayout.Padding = new Padding(4);
+        stabLayout.Margin = new Padding(0);
+        groupStabilization.Controls.Add(stabLayout);
+
+        var stabHelpLabel = CreateHelpLabel("Click image = set anchor point  ·  Delete/Enter = keep/discard frames");
+        stabLayout.Controls.Add(stabHelpLabel, 0, 0);
+        stabLayout.SetColumnSpan(stabHelpLabel, 2);
+
+        var stabColorLegendLabel = CreateWrappingHelpLabel("Frame list colors: green = anchored  ·  red = discarded  ·  orange = verify anchor  ·  black = not anchored");
+        stabLayout.Controls.Add(stabColorLegendLabel, 0, 1);
+        stabLayout.SetColumnSpan(stabColorLegendLabel, 2);
+
+        stabLayout.Controls.Add(btnToggleKeep, 0, 2);
+        stabLayout.SetColumnSpan(btnToggleKeep, 2);
 
         var autoAnchorThresholdsPanel = new FlowLayoutPanel
         {
@@ -370,7 +409,7 @@ partial class MainForm
         autoAnchorThresholdsPanel.Controls.Add(new Label
         {
             AutoSize = true,
-            Text = "Doubt threshold (%):",
+            Text = "Warning threshold (%):",
             Margin = new Padding(0, 6, 4, 0)
         });
         numAutoAnchorDoubtThreshold.Minimum = 0;
@@ -381,26 +420,79 @@ partial class MainForm
         numAutoAnchorDoubtThreshold.ValueChanged += numAutoAnchorDoubtThreshold_ValueChanged;
         autoAnchorThresholdsPanel.Controls.Add(numAutoAnchorDoubtThreshold);
 
-        navLayout.Controls.Add(autoAnchorThresholdsPanel, 0, 4);
-        navLayout.SetColumnSpan(autoAnchorThresholdsPanel, 2);
+        stabLayout.Controls.Add(autoAnchorThresholdsPanel, 0, 3);
+        stabLayout.SetColumnSpan(autoAnchorThresholdsPanel, 2);
+
+        stabLayout.Controls.Add(btnAutoAnchorOtherFrames, 0, 4);
+        stabLayout.SetColumnSpan(btnAutoAnchorOtherFrames, 2);
+
+        groupAdjustments.Text = "Image adjustments";
+        groupAdjustments.Dock = DockStyle.Top;
+        groupAdjustments.AutoSize = true;
+        groupAdjustments.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        groupAdjustments.Padding = new Padding(10, 16, 10, 10);
+        settingsLayout.Controls.Add(groupAdjustments, 0, 2);
+
+        var adjustmentsLayout = new TableLayoutPanel();
+        adjustmentsLayout.ColumnCount = 3;
+        adjustmentsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        adjustmentsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        adjustmentsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        adjustmentsLayout.RowCount = 9;
+        for (int i = 0; i < 9; i++) adjustmentsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        adjustmentsLayout.Dock = DockStyle.Top;
+        adjustmentsLayout.AutoSize = true;
+        adjustmentsLayout.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        groupAdjustments.Controls.Add(adjustmentsLayout);
+
+        var adjustmentsHelpLabel = CreateHelpLabel("Enter = apply value  ·  Esc = cancel edit");
+        adjustmentsLayout.Controls.Add(adjustmentsHelpLabel, 0, 0);
+        adjustmentsLayout.SetColumnSpan(adjustmentsHelpLabel, 3);
+
+        ConfigureAdjustmentTrackBar(trackBrightness, -100, 100, 0);
+        ConfigureAdjustmentTrackBar(trackContrast, -100, 100, 0);
+        ConfigureAdjustmentTrackBar(trackSaturation, -100, 100, 0);
+        ConfigureAdjustmentTrackBar(trackTemperature, -100, 100, 0);
+        ConfigureAdjustmentTrackBar(trackSharpness, 0, 100, 0);
+        ConfigureAdjustmentTrackBar(trackHighlights, -100, 100, 0);
+        ConfigureAdjustmentTrackBar(trackShadows, -100, 100, 0);
+
+        AddLabeledTrackBar(adjustmentsLayout, "Brightness", trackBrightness, txtBrightnessValue, 1);
+        AddLabeledTrackBar(adjustmentsLayout, "Contrast", trackContrast, txtContrastValue, 2);
+        AddLabeledTrackBar(adjustmentsLayout, "Saturation", trackSaturation, txtSaturationValue, 3);
+        AddLabeledTrackBar(adjustmentsLayout, "Temperature", trackTemperature, txtTemperatureValue, 4);
+        AddLabeledTrackBar(adjustmentsLayout, "Sharpness", trackSharpness, txtSharpnessValue, 5);
+        AddLabeledTrackBar(adjustmentsLayout, "Highlights", trackHighlights, txtHighlightsValue, 6);
+        AddLabeledTrackBar(adjustmentsLayout, "Shadows", trackShadows, txtShadowsValue, 7);
+
+        btnResetAdjustments.Text = "Reset";
+        btnResetAdjustments.Dock = DockStyle.Fill;
+        btnResetAdjustments.AutoSize = true;
+        btnResetAdjustments.Margin = new Padding(4, 8, 4, 4);
+        adjustmentsLayout.Controls.Add(btnResetAdjustments, 0, 8);
+        adjustmentsLayout.SetColumnSpan(btnResetAdjustments, 3);
 
         groupGif.Text = "Export";
         groupGif.Dock = DockStyle.Top;
         groupGif.AutoSize = true;
         groupGif.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-        groupGif.Padding = new Padding(10);
-        settingsLayout.Controls.Add(groupGif, 0, 1);
+        groupGif.Padding = new Padding(10, 16, 10, 10);
+        settingsLayout.Controls.Add(groupGif, 0, 3);
 
         var gifLayout = new TableLayoutPanel();
         gifLayout.ColumnCount = 1;
         gifLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-        gifLayout.RowCount = 2;
+        gifLayout.RowCount = 3;
+        gifLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         gifLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         gifLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         gifLayout.Dock = DockStyle.Top;
         gifLayout.AutoSize = true;
         gifLayout.AutoSizeMode = AutoSizeMode.GrowAndShrink;
         groupGif.Controls.Add(gifLayout);
+
+        var exportHelpLabel = CreateHelpLabel("Preview: drag = crop  ·  corners = resize  ·  right-click = reset");
+        gifLayout.Controls.Add(exportHelpLabel, 0, 0);
 
         var playbackOptionsPanel = new FlowLayoutPanel
         {
@@ -419,7 +511,7 @@ partial class MainForm
         chkHalfFrameRate.Margin = new Padding(0, 2, 0, 2);
         chkHalfFrameRate.CheckedChanged += chkHalfFrameRate_CheckedChanged;
         playbackOptionsPanel.Controls.Add(chkHalfFrameRate);
-        gifLayout.Controls.Add(playbackOptionsPanel, 0, 0);
+        gifLayout.Controls.Add(playbackOptionsPanel, 0, 1);
 
         btnRenderAndExportGif.Text = "Preview / export";
         btnRenderAndExportGif.Dock = DockStyle.Fill;
@@ -429,52 +521,10 @@ partial class MainForm
         btnRenderAndExportGif.FlatStyle = FlatStyle.Flat;
         btnRenderAndExportGif.UseVisualStyleBackColor = false;
         btnRenderAndExportGif.Click += btnRenderAndExportGif_Click;
-        gifLayout.Controls.Add(btnRenderAndExportGif, 0, 1);
-
-        groupAdjustments.Text = "Image adjustments";
-        groupAdjustments.Dock = DockStyle.Top;
-        groupAdjustments.AutoSize = true;
-        groupAdjustments.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-        groupAdjustments.Padding = new Padding(10);
-        settingsLayout.Controls.Add(groupAdjustments, 0, 2);
-
-        var adjustmentsLayout = new TableLayoutPanel();
-        adjustmentsLayout.ColumnCount = 3;
-        adjustmentsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        adjustmentsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-        adjustmentsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        adjustmentsLayout.RowCount = 8;
-        for (int i = 0; i < 8; i++) adjustmentsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        adjustmentsLayout.Dock = DockStyle.Top;
-        adjustmentsLayout.AutoSize = true;
-        adjustmentsLayout.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-        groupAdjustments.Controls.Add(adjustmentsLayout);
-
-        ConfigureAdjustmentTrackBar(trackBrightness, -100, 100, 0);
-        ConfigureAdjustmentTrackBar(trackContrast, -100, 100, 0);
-        ConfigureAdjustmentTrackBar(trackSaturation, -100, 100, 0);
-        ConfigureAdjustmentTrackBar(trackTemperature, -100, 100, 0);
-        ConfigureAdjustmentTrackBar(trackSharpness, 0, 100, 0);
-        ConfigureAdjustmentTrackBar(trackHighlights, -100, 100, 0);
-        ConfigureAdjustmentTrackBar(trackShadows, -100, 100, 0);
-
-        AddLabeledTrackBar(adjustmentsLayout, "Brightness", trackBrightness, txtBrightnessValue, 0);
-        AddLabeledTrackBar(adjustmentsLayout, "Contrast", trackContrast, txtContrastValue, 1);
-        AddLabeledTrackBar(adjustmentsLayout, "Saturation", trackSaturation, txtSaturationValue, 2);
-        AddLabeledTrackBar(adjustmentsLayout, "Temperature", trackTemperature, txtTemperatureValue, 3);
-        AddLabeledTrackBar(adjustmentsLayout, "Sharpness", trackSharpness, txtSharpnessValue, 4);
-        AddLabeledTrackBar(adjustmentsLayout, "Highlights", trackHighlights, txtHighlightsValue, 5);
-        AddLabeledTrackBar(adjustmentsLayout, "Shadows", trackShadows, txtShadowsValue, 6);
-
-        btnResetAdjustments.Text = "Reset";
-        btnResetAdjustments.Dock = DockStyle.Fill;
-        btnResetAdjustments.AutoSize = true;
-        btnResetAdjustments.Margin = new Padding(4, 8, 4, 4);
-        adjustmentsLayout.Controls.Add(btnResetAdjustments, 0, 7);
-        adjustmentsLayout.SetColumnSpan(btnResetAdjustments, 3);
+        gifLayout.Controls.Add(btnRenderAndExportGif, 0, 2);
 
         var filler = new Panel { Dock = DockStyle.Fill };
-        settingsLayout.Controls.Add(filler, 0, 3);
+        settingsLayout.Controls.Add(filler, 0, 4);
 
         statusLayout.ColumnCount = 1;
         statusLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
@@ -503,6 +553,7 @@ partial class MainForm
         splitRight.Panel2.ResumeLayout(false);
         splitRight.ResumeLayout(false);
         groupNavigation.ResumeLayout(false);
+        groupStabilization.ResumeLayout(false);
         groupGif.ResumeLayout(false);
         groupAdjustments.ResumeLayout(false);
         imagePanel.ResumeLayout(false);
@@ -548,6 +599,68 @@ partial class MainForm
         button.Margin = new Padding(6);
         button.Font = new Font("Segoe UI", 10F, FontStyle.Bold, GraphicsUnit.Point);
         button.UseVisualStyleBackColor = true;
+    }
+
+    private static Label CreateHelpLabel(string text)
+    {
+        return new Label
+        {
+            Text = text,
+            AutoSize = true,
+            Dock = DockStyle.Top,
+            Font = new Font("Segoe UI", 8.25F, FontStyle.Italic, GraphicsUnit.Point),
+            ForeColor = Color.DimGray,
+            Margin = new Padding(4, 0, 4, 8)
+        };
+    }
+
+    // Wraps and re-measures its height as the panel is resized, so long help text stays fully visible.
+    private static Label CreateWrappingHelpLabel(string text)
+    {
+        var label = new Label
+        {
+            Text = text,
+            AutoSize = false,
+            Dock = DockStyle.Top,
+            Font = new Font("Segoe UI", 8.25F, FontStyle.Italic, GraphicsUnit.Point),
+            ForeColor = Color.DimGray,
+            Margin = new Padding(4, 0, 4, 8)
+        };
+        label.SizeChanged += (_, _) =>
+        {
+            if (label.Width <= 0) return;
+            var measured = TextRenderer.MeasureText(label.Text, label.Font, new Size(label.Width, int.MaxValue), TextFormatFlags.WordBreak);
+            int desiredHeight = measured.Height + 2;
+            if (label.Height != desiredHeight) label.Height = desiredHeight;
+        };
+        return label;
+    }
+
+    /// Draws a bolder, larger title and a more visible border than the default theme GroupBox.
+    private sealed class StyledGroupBox : GroupBox
+    {
+        private static readonly Color BorderColor = Color.FromArgb(150, 150, 150);
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            var g = e.Graphics;
+            using var titleFont = new Font(Font.FontFamily, Font.Size + 1.5F, FontStyle.Bold);
+            var titleSize = g.MeasureString(Text, titleFont);
+            int titleLeft = 8;
+            int borderTop = (int)(titleSize.Height / 2);
+            int borderRight = Width - 1;
+            int borderBottom = Height - 1;
+
+            using var borderPen = new Pen(BorderColor);
+            g.DrawLine(borderPen, 0, borderTop, titleLeft - 2, borderTop);
+            g.DrawLine(borderPen, titleLeft + (int)titleSize.Width + 2, borderTop, borderRight, borderTop);
+            g.DrawLine(borderPen, 0, borderTop, 0, borderBottom);
+            g.DrawLine(borderPen, borderRight, borderTop, borderRight, borderBottom);
+            g.DrawLine(borderPen, 0, borderBottom, borderRight, borderBottom);
+
+            using var textBrush = new SolidBrush(ForeColor);
+            g.DrawString(Text, titleFont, textBrush, titleLeft, 0);
+        }
     }
 }
 

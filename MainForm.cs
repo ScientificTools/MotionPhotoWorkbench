@@ -75,6 +75,14 @@ public partial class MainForm : Form
         WindowState = FormWindowState.Maximized;
         pictureBoxFrame.SizeMode = PictureBoxSizeMode.Normal;
         pictureBoxFrame.MouseEnter += (_, _) => pictureBoxFrame.Focus();
+        EnableDoubleBuffering(splitMain);
+        EnableDoubleBuffering(splitRight);
+        EnableDoubleBuffering(imagePanel);
+        EnableDoubleBuffering(pictureBoxFrame);
+        splitMain.SplitterMoving += (_, _) => pictureBoxFrame.Invalidate();
+        splitRight.SplitterMoving += (_, _) => pictureBoxFrame.Invalidate();
+        splitMain.SplitterMoved += SplitContainer_SplitterMoved;
+        splitRight.SplitterMoved += SplitContainer_SplitterMoved;
         listBoxFrames.DrawMode = DrawMode.OwnerDrawFixed;
         listBoxFrames.ItemHeight = Math.Max(listBoxFrames.Font.Height + 10, 28);
         listBoxFrames.DrawItem += listBoxFrames_DrawItem;
@@ -130,6 +138,22 @@ public partial class MainForm : Form
             ClampImagePanOffset();
             pictureBoxFrame.Invalidate();
         }
+    }
+
+    private void SplitContainer_SplitterMoved(object? sender, SplitterEventArgs e)
+    {
+        ClampImagePanOffset();
+        pictureBoxFrame.Invalidate();
+    }
+
+    private static void EnableDoubleBuffering(Control control)
+    {
+        typeof(Control).InvokeMember(
+            "DoubleBuffered",
+            System.Reflection.BindingFlags.SetProperty | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic,
+            null,
+            control,
+            new object[] { true });
     }
 
     private void ApplyResponsiveLayout()
@@ -448,8 +472,10 @@ public partial class MainForm : Form
             ? frame.AnchorPoint.HasValue ? "ANCHOR" : "TO PLACE"
             : "DISCARDED";
 
-        Rectangle textBounds = new(e.Bounds.X + 6, e.Bounds.Y + 1, Math.Max(0, e.Bounds.Width - 142), e.Bounds.Height - 2);
-        Rectangle badgeBounds = new(e.Bounds.Right - 130, e.Bounds.Y + 1, 124, e.Bounds.Height - 2);
+        // Size the badge to its own text so the status is never truncated, regardless of list width.
+        int badgeWidth = TextRenderer.MeasureText(e.Graphics, status, e.Font, new Size(int.MaxValue, e.Bounds.Height), TextFormatFlags.NoPadding).Width + 12;
+        Rectangle textBounds = new(e.Bounds.X + 6, e.Bounds.Y + 1, Math.Max(0, e.Bounds.Width - badgeWidth - 12), e.Bounds.Height - 2);
+        Rectangle badgeBounds = new(e.Bounds.Right - badgeWidth - 6, e.Bounds.Y + 1, badgeWidth, e.Bounds.Height - 2);
 
         TextRenderer.DrawText(
             e.Graphics,
