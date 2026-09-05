@@ -12,6 +12,9 @@ public sealed class FrameInfo
     // Point choisi par l'utilisateur dans l'image source
     public PointF? AnchorPoint { get; set; }
 
+    // Vrai si l'ancrage a été accepté par l'auto-anchor avec un score sous le seuil de confiance "sûr"
+    public bool IsAnchorUncertain { get; set; }
+
     // Décalage calculé pour alignement
     public float OffsetX { get; set; }
     public float OffsetY { get; set; }

@@ -15,7 +15,11 @@ partial class MainForm
     private Button btnZoomOut = null!;
     private Button btnToggleKeep = null!;
     private Button btnAutoAnchorOtherFrames = null!;
+    private NumericUpDown numAutoAnchorStopThreshold = null!;
+    private NumericUpDown numAutoAnchorDoubtThreshold = null!;
     private Button btnRenderAndExportGif = null!;
+    private CheckBox chkPingPongPlayback = null!;
+    private CheckBox chkHalfFrameRate = null!;
     private Button btnSaveProject = null!;
     private Button btnLoadProject = null!;
     private Button btnCleanCacheProject = null!;
@@ -83,7 +87,11 @@ partial class MainForm
         btnZoomOut = new Button();
         btnToggleKeep = new Button();
         btnAutoAnchorOtherFrames = new Button();
+        numAutoAnchorStopThreshold = new NumericUpDown();
+        numAutoAnchorDoubtThreshold = new NumericUpDown();
         btnRenderAndExportGif = new Button();
+        chkPingPongPlayback = new CheckBox();
+        chkHalfFrameRate = new CheckBox();
         btnSaveProject = new Button();
         btnLoadProject = new Button();
         btnCleanCacheProject = new Button();
@@ -125,6 +133,8 @@ partial class MainForm
         groupGif = new GroupBox();
         groupAdjustments = new GroupBox();
         ((System.ComponentModel.ISupportInitialize)pictureBoxFrame).BeginInit();
+        ((System.ComponentModel.ISupportInitialize)numAutoAnchorStopThreshold).BeginInit();
+        ((System.ComponentModel.ISupportInitialize)numAutoAnchorDoubtThreshold).BeginInit();
         splitMain.Panel1.SuspendLayout();
         splitMain.Panel2.SuspendLayout();
         splitMain.SuspendLayout();
@@ -215,7 +225,7 @@ partial class MainForm
         lblFrameLegend.Dock = DockStyle.Fill;
         lblFrameLegend.AutoSize = true;
         lblFrameLegend.Padding = new Padding(4, 8, 4, 0);
-        lblFrameLegend.Text = "Black: anchor to place   |   Green: anchor placed   |   Red: discarded frame";
+        lblFrameLegend.Text = "Black: anchor to place   |   Green: anchor placed   |   Orange: anchor at risk   |   Red: discarded frame";
         framesPanel.Controls.Add(lblFrameLegend, 0, 1);
 
         lblStatus.AutoEllipsis = false;
@@ -301,11 +311,12 @@ partial class MainForm
         navLayout.ColumnCount = 2;
         navLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
         navLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
-        navLayout.RowCount = 4;
-        navLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 33.33F));
-        navLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 33.33F));
-        navLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 33.33F));
-        navLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 33.33F));
+        navLayout.RowCount = 5;
+        navLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 20F));
+        navLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 20F));
+        navLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 20F));
+        navLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 20F));
+        navLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 20F));
         navLayout.Dock = DockStyle.Fill;
         navLayout.AutoSize = true;
         navLayout.AutoSizeMode = AutoSizeMode.GrowAndShrink;
@@ -317,7 +328,7 @@ partial class MainForm
         ConfigureNavButton(btnNext, ">");
         ConfigureNavButton(btnZoomIn, "Zoom in");
         ConfigureNavButton(btnZoomOut, "Zoom out");
-        ConfigureNavButton(btnAutoAnchorOtherFrames, "Auto anchor other frames");
+        ConfigureNavButton(btnAutoAnchorOtherFrames, "Auto anchor next frames");
         ConfigureNavButton(btnToggleKeep, "Keep / discard");
 
         btnPrev.Click += btnPrev_Click;
@@ -336,6 +347,43 @@ partial class MainForm
         navLayout.Controls.Add(btnAutoAnchorOtherFrames, 0, 3);
         navLayout.SetColumnSpan(btnAutoAnchorOtherFrames, 2);
 
+        var autoAnchorThresholdsPanel = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            AutoSize = true,
+            WrapContents = true,
+            Margin = new Padding(0, 4, 0, 0)
+        };
+        autoAnchorThresholdsPanel.Controls.Add(new Label
+        {
+            AutoSize = true,
+            Text = "Stop threshold (%):",
+            Margin = new Padding(0, 6, 4, 0)
+        });
+        numAutoAnchorStopThreshold.Minimum = 0;
+        numAutoAnchorStopThreshold.Maximum = 100;
+        numAutoAnchorStopThreshold.DecimalPlaces = 0;
+        numAutoAnchorStopThreshold.Width = 70;
+        numAutoAnchorStopThreshold.Margin = new Padding(0, 2, 12, 0);
+        numAutoAnchorStopThreshold.ValueChanged += numAutoAnchorStopThreshold_ValueChanged;
+        autoAnchorThresholdsPanel.Controls.Add(numAutoAnchorStopThreshold);
+        autoAnchorThresholdsPanel.Controls.Add(new Label
+        {
+            AutoSize = true,
+            Text = "Doubt threshold (%):",
+            Margin = new Padding(0, 6, 4, 0)
+        });
+        numAutoAnchorDoubtThreshold.Minimum = 0;
+        numAutoAnchorDoubtThreshold.Maximum = 100;
+        numAutoAnchorDoubtThreshold.DecimalPlaces = 0;
+        numAutoAnchorDoubtThreshold.Width = 70;
+        numAutoAnchorDoubtThreshold.Margin = new Padding(0, 2, 0, 0);
+        numAutoAnchorDoubtThreshold.ValueChanged += numAutoAnchorDoubtThreshold_ValueChanged;
+        autoAnchorThresholdsPanel.Controls.Add(numAutoAnchorDoubtThreshold);
+
+        navLayout.Controls.Add(autoAnchorThresholdsPanel, 0, 4);
+        navLayout.SetColumnSpan(autoAnchorThresholdsPanel, 2);
+
         groupGif.Text = "Export";
         groupGif.Dock = DockStyle.Top;
         groupGif.AutoSize = true;
@@ -346,12 +394,33 @@ partial class MainForm
         var gifLayout = new TableLayoutPanel();
         gifLayout.ColumnCount = 1;
         gifLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-        gifLayout.RowCount = 1;
+        gifLayout.RowCount = 2;
+        gifLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         gifLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         gifLayout.Dock = DockStyle.Top;
         gifLayout.AutoSize = true;
         gifLayout.AutoSizeMode = AutoSizeMode.GrowAndShrink;
         groupGif.Controls.Add(gifLayout);
+
+        var playbackOptionsPanel = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            AutoSize = true,
+            WrapContents = true,
+            Margin = new Padding(0, 0, 0, 6)
+        };
+        chkPingPongPlayback.Text = "Round-trip video";
+        chkPingPongPlayback.AutoSize = true;
+        chkPingPongPlayback.Margin = new Padding(0, 2, 16, 2);
+        chkPingPongPlayback.CheckedChanged += chkPingPongPlayback_CheckedChanged;
+        playbackOptionsPanel.Controls.Add(chkPingPongPlayback);
+        chkHalfFrameRate.Text = "One frame out of 2";
+        chkHalfFrameRate.AutoSize = true;
+        chkHalfFrameRate.Margin = new Padding(0, 2, 0, 2);
+        chkHalfFrameRate.CheckedChanged += chkHalfFrameRate_CheckedChanged;
+        playbackOptionsPanel.Controls.Add(chkHalfFrameRate);
+        gifLayout.Controls.Add(playbackOptionsPanel, 0, 0);
+
         btnRenderAndExportGif.Text = "Preview / export";
         btnRenderAndExportGif.Dock = DockStyle.Fill;
         btnRenderAndExportGif.Height = 34;
@@ -360,7 +429,7 @@ partial class MainForm
         btnRenderAndExportGif.FlatStyle = FlatStyle.Flat;
         btnRenderAndExportGif.UseVisualStyleBackColor = false;
         btnRenderAndExportGif.Click += btnRenderAndExportGif_Click;
-        gifLayout.Controls.Add(btnRenderAndExportGif, 0, 0);
+        gifLayout.Controls.Add(btnRenderAndExportGif, 0, 1);
 
         groupAdjustments.Text = "Image adjustments";
         groupAdjustments.Dock = DockStyle.Top;
@@ -425,6 +494,8 @@ partial class MainForm
         statusLayout.Controls.Add(helpLabelLegacy, 0, 1);
 
         ((System.ComponentModel.ISupportInitialize)pictureBoxFrame).EndInit();
+        ((System.ComponentModel.ISupportInitialize)numAutoAnchorStopThreshold).EndInit();
+        ((System.ComponentModel.ISupportInitialize)numAutoAnchorDoubtThreshold).EndInit();
         splitMain.Panel1.ResumeLayout(false);
         splitMain.Panel2.ResumeLayout(false);
         splitMain.ResumeLayout(false);

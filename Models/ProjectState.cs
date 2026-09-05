@@ -18,6 +18,18 @@ public sealed class ProjectState
 
     // Cadence d'export video/GIF
     public int VideoFps { get; set; } = 20;
+
+    // Score minimal (0-1) sous lequel l'auto-anchor abandonne la frame candidate
+    public float AutoAnchorStopConfidence { get; set; } = 0.82f;
+
+    // Score minimal (0-1) sous lequel une frame acceptée par l'auto-anchor est marquée incertaine (orange)
+    public float AutoAnchorDoubtConfidence { get; set; } = 0.95f;
+
+    // Rejoue la séquence en aller-retour pour éviter le saut d'image en boucle
+    public bool PingPongPlayback { get; set; }
+
+    // N'utilise qu'une image sur deux pour accélérer le défilement
+    public bool HalfFrameRate { get; set; }
 }
 
 

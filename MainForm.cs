@@ -536,6 +536,7 @@ public partial class MainForm : Form
             return;
 
         _project.Frames[_currentIndex].AnchorPoint = imgPoint.Value;
+        _project.Frames[_currentIndex].IsAnchorUncertain = false;
         UpdateFrameInfo();
         pictureBoxFrame.Invalidate();
         RefreshFrameList();
@@ -645,14 +646,14 @@ public partial class MainForm : Form
         if (!referenceFrame.AnchorPoint.HasValue)
             return;
 
-        if (!await EnsureProjectCacheAvailableAsync("auto-anchor the other frames", _currentIndex))
+        if (!await EnsureProjectCacheAvailableAsync("auto-anchor the following frames", _currentIndex))
             return;
 
-        int candidateCount = _project.Frames.Count(frame => frame.IsKept && frame.Index != referenceFrame.Index);
+        int candidateCount = _project.Frames.Count(frame => frame.IsKept && frame.Index > referenceFrame.Index);
 
         if (candidateCount == 0)
         {
-            lblStatus.Text = "No other active frames to auto-anchor.";
+            lblStatus.Text = "No following active frames to auto-anchor.";
             return;
         }
 
@@ -724,7 +725,7 @@ public partial class MainForm : Form
 
                 lblStatus.Text = "Previewing automatic crop...";
                 using (var previewImage = LoadPreviewImage(renderResult.PreviewPath))
-                using (var previewForm = new PreviewForm(previewImage, renderResult.IntersectionCrop, _project.VideoFps, additionalCrop))
+                using (var previewForm = new PreviewForm(previewImage, renderResult.IntersectionCrop, GetInitialPreviewFps(), additionalCrop))
                 {
                     previewForm.ExportRequestedAsync = (form, choice) => ExecutePreviewExportAsync(form, choice, renderResult.IntersectionCrop, alignedBase);
 
@@ -884,6 +885,13 @@ public partial class MainForm : Form
                 string finalDir = Path.Combine(_project.WorkingDirectory, "final");
                 exportFrames = (await _alignmentService.ApplyAdditionalCropAsync(alignedBase, additionalCrop, finalDir)).ToList();
             }
+
+            // HalfFrameRate already folds its own sequence to loop without a jump, so stacking
+            // the generic ping-pong fold on top would needlessly double the frame count again.
+            if (_project.HalfFrameRate)
+                exportFrames = ApplyHalfFrameRate(exportFrames);
+            else if (_project.PingPongPlayback)
+                exportFrames = ApplyPingPongPlayback(exportFrames);
 
             _project.OutputCrop = new Rectangle(
                 intersectionCrop.X + additionalCrop.X,
@@ -1051,6 +1059,7 @@ public partial class MainForm : Form
                 SourcePath = frame.SourcePath,
                 IsKept = frame.IsKept,
                 AnchorPoint = frame.AnchorPoint,
+                IsAnchorUncertain = frame.IsAnchorUncertain,
                 OffsetX = frame.OffsetX,
                 OffsetY = frame.OffsetY
             })
@@ -1081,6 +1090,7 @@ public partial class MainForm : Form
                         SourcePath = path,
                         IsKept = savedFrame.IsKept,
                         AnchorPoint = savedFrame.AnchorPoint,
+                        IsAnchorUncertain = savedFrame.IsAnchorUncertain,
                         OffsetX = savedFrame.OffsetX,
                         OffsetY = savedFrame.OffsetY
                     };
@@ -1362,22 +1372,20 @@ public partial class MainForm : Form
         if (referencePosition < 0)
             return new AutoAnchorBatchResult(0, 0);
 
-        AutoAnchorBatchResult forwardResult = AutoAnchorInDirection(keptFrames, referencePosition, step: 1);
-        AutoAnchorBatchResult backwardResult = AutoAnchorInDirection(keptFrames, referencePosition, step: -1);
-
-        return new AutoAnchorBatchResult(
-            forwardResult.UpdatedCount + backwardResult.UpdatedCount,
-            forwardResult.FailedCount + backwardResult.FailedCount);
+        return AutoAnchorForward(keptFrames, referencePosition);
     }
 
-    private AutoAnchorBatchResult AutoAnchorInDirection(IReadOnlyList<FrameInfo> keptFrames, int startIndex, int step)
+    private AutoAnchorBatchResult AutoAnchorForward(IReadOnlyList<FrameInfo> keptFrames, int startIndex)
     {
         int updatedCount = 0;
         int failedCount = 0;
         FrameInfo currentReferenceFrame = keptFrames[startIndex];
         PointF currentReferenceAnchor = currentReferenceFrame.AnchorPoint!.Value;
+        bool chainUncertain = currentReferenceFrame.IsAnchorUncertain;
+        float stopConfidence = _project.AutoAnchorStopConfidence;
+        float doubtConfidence = _project.AutoAnchorDoubtConfidence;
 
-        for (int index = startIndex + step; index >= 0 && index < keptFrames.Count; index += step)
+        for (int index = startIndex + 1; index < keptFrames.Count; index++)
         {
             FrameInfo candidateFrame = keptFrames[index];
 
@@ -1390,7 +1398,8 @@ public partial class MainForm : Form
             AutoAnchorSearchResult searchResult = _anchorAutoDetectionService.FindAnchor(
                 currentReferenceFrame.SourcePath,
                 currentReferenceAnchor,
-                candidateFrame.SourcePath);
+                candidateFrame.SourcePath,
+                stopConfidence);
 
             if (!searchResult.Success || !searchResult.AnchorPoint.HasValue)
             {
@@ -1398,7 +1407,10 @@ public partial class MainForm : Form
                 continue;
             }
 
+            chainUncertain = chainUncertain || searchResult.Score < doubtConfidence;
+
             candidateFrame.AnchorPoint = searchResult.AnchorPoint.Value;
+            candidateFrame.IsAnchorUncertain = chainUncertain;
             currentReferenceFrame = candidateFrame;
             currentReferenceAnchor = searchResult.AnchorPoint.Value;
             updatedCount++;
@@ -1563,11 +1575,47 @@ public partial class MainForm : Form
             trackHighlights.Value = FloatToSignedTrackValue(_project.Adjustments.Highlights);
             trackShadows.Value = FloatToSignedTrackValue(_project.Adjustments.Shadows);
             UpdateAdjustmentValueLabels();
+            numAutoAnchorStopThreshold.Value = (decimal)Math.Clamp(_project.AutoAnchorStopConfidence * 100f, 0f, 100f);
+            numAutoAnchorDoubtThreshold.Value = (decimal)Math.Clamp(_project.AutoAnchorDoubtConfidence * 100f, 0f, 100f);
+            chkPingPongPlayback.Checked = _project.PingPongPlayback;
+            chkHalfFrameRate.Checked = _project.HalfFrameRate;
         }
         finally
         {
             _isSyncingAdjustmentControls = false;
         }
+    }
+
+    private void chkPingPongPlayback_CheckedChanged(object? sender, EventArgs e)
+    {
+        if (_isSyncingAdjustmentControls)
+            return;
+
+        _project.PingPongPlayback = chkPingPongPlayback.Checked;
+    }
+
+    private void chkHalfFrameRate_CheckedChanged(object? sender, EventArgs e)
+    {
+        if (_isSyncingAdjustmentControls)
+            return;
+
+        _project.HalfFrameRate = chkHalfFrameRate.Checked;
+    }
+
+    private void numAutoAnchorStopThreshold_ValueChanged(object? sender, EventArgs e)
+    {
+        if (_isSyncingAdjustmentControls)
+            return;
+
+        _project.AutoAnchorStopConfidence = (float)(numAutoAnchorStopThreshold.Value / 100m);
+    }
+
+    private void numAutoAnchorDoubtThreshold_ValueChanged(object? sender, EventArgs e)
+    {
+        if (_isSyncingAdjustmentControls)
+            return;
+
+        _project.AutoAnchorDoubtConfidence = (float)(numAutoAnchorDoubtThreshold.Value / 100m);
     }
 
     private ImageAdjustmentSettings ReadAdjustmentsFromControls()
@@ -1821,6 +1869,51 @@ public partial class MainForm : Form
         return Math.Max(1, (int)Math.Round(100d / safeFps, MidpointRounding.AwayFromZero));
     }
 
+    // Compense le fait qu'une image sur deux avance 2x plus vite dans la source
+    private int GetInitialPreviewFps()
+    {
+        return _project.HalfFrameRate ? Math.Max(1, _project.VideoFps / 2) : _project.VideoFps;
+    }
+
+    // Ne garde qu'une frame sur deux (positions impaires en base 1) en repliant le reste pour boucler sans saut
+    private static List<string> ApplyHalfFrameRate(IReadOnlyList<string> frames)
+    {
+        if (frames.Count <= 2)
+            return frames.ToList();
+
+        var oddIndexed = new List<string>();
+        for (int i = 0; i < frames.Count; i += 2)
+            oddIndexed.Add(frames[i]);
+
+        var result = new List<string>(oddIndexed);
+
+        if (frames.Count % 2 == 1)
+        {
+            for (int i = oddIndexed.Count - 2; i >= 1; i--)
+                result.Add(oddIndexed[i]);
+        }
+        else
+        {
+            for (int i = frames.Count - 1; i >= 1; i -= 2)
+                result.Add(frames[i]);
+        }
+
+        return result;
+    }
+
+    // Rejoue la s\u00e9quence en marche arri\u00e8re (hors extr\u00e9mit\u00e9s) pour boucler sans saut d'image
+    private static List<string> ApplyPingPongPlayback(IReadOnlyList<string> frames)
+    {
+        if (frames.Count <= 2)
+            return frames.ToList();
+
+        var result = new List<string>(frames);
+        for (int i = frames.Count - 2; i >= 1; i--)
+            result.Add(frames[i]);
+
+        return result;
+    }
+
     private static Rectangle? TryCreatePreviewInitialCrop(Rectangle intersectionCrop, Rectangle savedOutputCrop)
     {
         if (intersectionCrop.Width <= 0 || intersectionCrop.Height <= 0)
@@ -1850,7 +1943,7 @@ public partial class MainForm : Form
             return Color.Firebrick;
 
         if (frame.AnchorPoint.HasValue)
-            return Color.ForestGreen;
+            return frame.IsAnchorUncertain ? Color.DarkOrange : Color.ForestGreen;
 
         return Color.Black;
     }
