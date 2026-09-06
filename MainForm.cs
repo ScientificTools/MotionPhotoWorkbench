@@ -89,12 +89,15 @@ public partial class MainForm : Form
         btnPrev.MinimumSize = new Size(0, 40);
         btnNext.MinimumSize = new Size(0, 40);
         btnToggleKeep.MinimumSize = new Size(0, 40);
+        btnDeleteAnchors.MinimumSize = new Size(0, 40);
         btnAutoAnchorOtherFrames.MinimumSize = new Size(0, 40);
         btnPrev.Height = 40;
         btnNext.Height = 40;
         btnToggleKeep.Height = 40;
+        btnDeleteAnchors.Height = 40;
         btnAutoAnchorOtherFrames.Height = 40;
         btnToggleKeep.MinimumSize = new Size(0, 44);
+        btnDeleteAnchors.MinimumSize = new Size(0, 44);
         btnAutoAnchorOtherFrames.MinimumSize = new Size(0, 44);
         btnRenderAndExportGif.AutoSize = false;
         btnRenderAndExportGif.MinimumSize = new Size(0, 48);
@@ -388,13 +391,8 @@ public partial class MainForm : Form
 
     private void UpdateAutoAnchorButtonVisibility()
     {
-        bool isVisible =
-            _currentIndex >= 0 &&
-            _currentIndex < _project.Frames.Count &&
-            _project.Frames[_currentIndex].AnchorPoint.HasValue;
-
-        btnAutoAnchorOtherFrames.Visible = isVisible;
-        btnAutoAnchorOtherFrames.Enabled = isVisible;
+        btnAutoAnchorOtherFrames.Visible = true;
+        btnAutoAnchorOtherFrames.Enabled = true;
     }
 
     private void listBoxFrames_SelectedIndexChanged(object sender, EventArgs e)
@@ -663,17 +661,52 @@ public partial class MainForm : Form
         listBoxFrames.SelectedIndex = _currentIndex;
     }
 
+    private void btnDeleteAnchors_Click(object? sender, EventArgs e)
+    {
+        foreach (FrameInfo frame in _project.Frames)
+        {
+            frame.AnchorPoint = null;
+            frame.IsAnchorUncertain = false;
+        }
+
+        UpdateFrameInfo();
+        RefreshFrameList();
+        pictureBoxFrame.Invalidate();
+    }
+
     private async void btnAutoAnchorOtherFrames_Click(object? sender, EventArgs e)
     {
         if (_currentIndex < 0 || _currentIndex >= _project.Frames.Count)
+        {
+            MessageBox.Show(
+                this,
+                "Load an image or project first, then set an anchor point on the first frame to calculate the matching anchor point on the other frames.",
+                "Auto anchor",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
             return;
+        }
 
         FrameInfo referenceFrame = _project.Frames[_currentIndex];
         if (!referenceFrame.AnchorPoint.HasValue)
+        {
+            MessageBox.Show(
+                this,
+                "Set an anchor point on the first frame to calculate the matching anchor point on the other frames.",
+                "Auto anchor",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
             return;
+        }
 
         if (!await EnsureProjectCacheAvailableAsync("auto-anchor the following frames", _currentIndex))
             return;
+
+        foreach (FrameInfo frame in _project.Frames.Where(frame => frame.IsKept && frame.Index > referenceFrame.Index))
+        {
+            frame.AnchorPoint = null;
+            frame.IsAnchorUncertain = false;
+        }
 
         int candidateCount = _project.Frames.Count(frame => frame.IsKept && frame.Index > referenceFrame.Index);
 
@@ -1895,10 +1928,9 @@ public partial class MainForm : Form
         return Math.Max(1, (int)Math.Round(100d / safeFps, MidpointRounding.AwayFromZero));
     }
 
-    // Compense le fait qu'une image sur deux avance 2x plus vite dans la source
     private int GetInitialPreviewFps()
     {
-        return _project.HalfFrameRate ? Math.Max(1, _project.VideoFps / 2) : _project.VideoFps;
+        return _project.VideoFps;
     }
 
     // Ne garde qu'une frame sur deux (positions impaires en base 1) en repliant le reste pour boucler sans saut

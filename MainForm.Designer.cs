@@ -14,6 +14,7 @@ partial class MainForm
     private Button btnZoomIn = null!;
     private Button btnZoomOut = null!;
     private Button btnToggleKeep = null!;
+    private Button btnDeleteAnchors = null!;
     private Button btnAutoAnchorOtherFrames = null!;
     private NumericUpDown numAutoAnchorStopThreshold = null!;
     private NumericUpDown numAutoAnchorDoubtThreshold = null!;
@@ -87,6 +88,7 @@ partial class MainForm
         btnZoomIn = new Button();
         btnZoomOut = new Button();
         btnToggleKeep = new Button();
+        btnDeleteAnchors = new Button();
         btnAutoAnchorOtherFrames = new Button();
         numAutoAnchorStopThreshold = new NumericUpDown();
         numAutoAnchorDoubtThreshold = new NumericUpDown();
@@ -317,10 +319,11 @@ partial class MainForm
         navLayout.ColumnCount = 2;
         navLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
         navLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
-        navLayout.RowCount = 3;
+        navLayout.RowCount = 4;
         navLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         navLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
         navLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
+        navLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 102F));
         navLayout.Dock = DockStyle.Fill;
         navLayout.AutoSize = true;
         navLayout.AutoSizeMode = AutoSizeMode.GrowAndShrink;
@@ -362,12 +365,14 @@ partial class MainForm
         stabLayout.ColumnCount = 2;
         stabLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
         stabLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
-        stabLayout.RowCount = 5;
+        stabLayout.RowCount = 7;
         stabLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         stabLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         stabLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         stabLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         stabLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        stabLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        stabLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 136F));
         stabLayout.Dock = DockStyle.Fill;
         stabLayout.AutoSize = true;
         stabLayout.AutoSizeMode = AutoSizeMode.GrowAndShrink;
@@ -379,12 +384,13 @@ partial class MainForm
         stabLayout.Controls.Add(stabHelpLabel, 0, 0);
         stabLayout.SetColumnSpan(stabHelpLabel, 2);
 
-        var stabColorLegendLabel = CreateWrappingHelpLabel("Frame list colors: green = anchored  ·  red = discarded  ·  orange = verify anchor  ·  black = not anchored");
-        stabLayout.Controls.Add(stabColorLegendLabel, 0, 1);
-        stabLayout.SetColumnSpan(stabColorLegendLabel, 2);
-
-        stabLayout.Controls.Add(btnToggleKeep, 0, 2);
+        stabLayout.Controls.Add(btnToggleKeep, 0, 1);
         stabLayout.SetColumnSpan(btnToggleKeep, 2);
+
+        ConfigureNavButton(btnDeleteAnchors, "Delete anchors");
+        btnDeleteAnchors.Click += btnDeleteAnchors_Click;
+        stabLayout.Controls.Add(btnDeleteAnchors, 0, 2);
+        stabLayout.SetColumnSpan(btnDeleteAnchors, 2);
 
         var autoAnchorThresholdsPanel = new FlowLayoutPanel
         {
@@ -438,8 +444,9 @@ partial class MainForm
         adjustmentsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         adjustmentsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
         adjustmentsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        adjustmentsLayout.RowCount = 9;
+        adjustmentsLayout.RowCount = 10;
         for (int i = 0; i < 9; i++) adjustmentsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        adjustmentsLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 68F));
         adjustmentsLayout.Dock = DockStyle.Top;
         adjustmentsLayout.AutoSize = true;
         adjustmentsLayout.AutoSizeMode = AutoSizeMode.GrowAndShrink;
@@ -482,10 +489,11 @@ partial class MainForm
         var gifLayout = new TableLayoutPanel();
         gifLayout.ColumnCount = 1;
         gifLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-        gifLayout.RowCount = 3;
+        gifLayout.RowCount = 4;
         gifLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         gifLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         gifLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        gifLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 102F));
         gifLayout.Dock = DockStyle.Top;
         gifLayout.AutoSize = true;
         gifLayout.AutoSizeMode = AutoSizeMode.GrowAndShrink;

@@ -54,13 +54,16 @@ public sealed class ImageAlignmentService
         Directory.CreateDirectory(outputDirectory);
 
         var outputs = new List<string>();
-        SDRectangle intersectionCrop = ComputeIntersectionCrop(project);
+        bool useAnchors = project.Frames.Any(frame => frame.IsKept && frame.AnchorPoint.HasValue);
+        SDRectangle intersectionCrop = useAnchors
+            ? ComputeIntersectionCrop(project)
+            : GetUnanchoredCrop(project);
 
         foreach (var frame in project.Frames.Where(f => f.IsKept))
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            if (!frame.AnchorPoint.HasValue)
+            if (useAnchors && !frame.AnchorPoint.HasValue)
                 continue;
 
             string outputPath = Path.Combine(outputDirectory, $"aligned_{frame.Index:0000}.png");
@@ -68,7 +71,7 @@ public sealed class ImageAlignmentService
                 project.Adjustments = ImageAdjustmentSettings.Default;
 
             ImageAdjustmentSettings adjustments = project.Adjustments.Clone();
-            await Task.Run(() => RenderOne(frame, intersectionCrop, outputPath, adjustments), cancellationToken);
+            await Task.Run(() => RenderOne(frame, intersectionCrop, outputPath, adjustments, useAnchors), cancellationToken);
             outputs.Add(outputPath);
         }
 
@@ -86,6 +89,27 @@ public sealed class ImageAlignmentService
         };
     }
 
+    private static SDRectangle GetUnanchoredCrop(ProjectState project)
+    {
+        List<FrameInfo> keptFrames = project.Frames.Where(frame => frame.IsKept).ToList();
+        if (keptFrames.Count == 0)
+            throw new InvalidOperationException("No usable frame: at least one kept image is required.");
+
+        var firstInfo = SixLabors.ImageSharp.Image.Identify(keptFrames[0].SourcePath)
+            ?? throw new InvalidOperationException($"Unable to identify source image '{keptFrames[0].SourcePath}'.");
+
+        foreach (FrameInfo frame in keptFrames.Skip(1))
+        {
+            var info = SixLabors.ImageSharp.Image.Identify(frame.SourcePath)
+                ?? throw new InvalidOperationException($"Unable to identify source image '{frame.SourcePath}'.");
+
+            if (info.Width != firstInfo.Width || info.Height != firstInfo.Height)
+                throw new InvalidOperationException("All kept images must have the same dimensions when no anchors are set.");
+        }
+
+        return new SDRectangle(0, 0, firstInfo.Width, firstInfo.Height);
+    }
+
     private static IEnumerable<(FrameInfo Frame, SDRectangle VisibleArea)> GetRenderableFrames(ProjectState project)
     {
         foreach (var frame in project.Frames.Where(f => f.IsKept && f.AnchorPoint.HasValue))
@@ -100,15 +124,15 @@ public sealed class ImageAlignmentService
         }
     }
 
-    private void RenderOne(FrameInfo frame, SDRectangle crop, string outputPath, ImageAdjustmentSettings adjustments)
+    private void RenderOne(FrameInfo frame, SDRectangle crop, string outputPath, ImageAdjustmentSettings adjustments, bool useAnchors)
     {
         using SixLabors.ImageSharp.Image<Rgba32> source = SixLabors.ImageSharp.Image.Load<Rgba32>(frame.SourcePath);
         _imageAdjustmentService.ApplyAdjustments(source, adjustments);
 
         using SixLabors.ImageSharp.Image<Rgba32> canvas = new(crop.Width, crop.Height);
 
-        int drawX = (int)MathF.Round(frame.OffsetX) - crop.X;
-        int drawY = (int)MathF.Round(frame.OffsetY) - crop.Y;
+        int drawX = useAnchors ? (int)MathF.Round(frame.OffsetX) - crop.X : 0;
+        int drawY = useAnchors ? (int)MathF.Round(frame.OffsetY) - crop.Y : 0;
 
         canvas.Mutate(ctx =>
         {
