@@ -9,6 +9,7 @@ partial class MainForm
     private System.ComponentModel.IContainer components = null!;
 
     private Button btnOpenInput = null!;
+    private Button btnOpenFolder = null!;
     private Button btnPrev = null!;
     private Button btnNext = null!;
     private Button btnZoomIn = null!;
@@ -83,6 +84,7 @@ partial class MainForm
         components = new System.ComponentModel.Container();
 
         btnOpenInput = new Button();
+        btnOpenFolder = new Button();
         btnPrev = new Button();
         btnNext = new Button();
         btnZoomIn = new Button();
@@ -178,14 +180,18 @@ partial class MainForm
         topBar.Dock = DockStyle.Fill;
         topBar.Padding = new Padding(8);
         topBar.Controls.Add(btnOpenInput);
+        topBar.Controls.Add(btnOpenFolder);
         topBar.Controls.Add(btnSaveProject);
         topBar.Controls.Add(btnLoadProject);
         topBar.Controls.Add(btnCleanCacheProject);
         rootLayout.Controls.Add(topBar, 0, 0);
 
-        btnOpenInput.Text = "Open";
+        btnOpenInput.Text = "Open video or motion picture";
         btnOpenInput.AutoSize = true;
         btnOpenInput.Click += btnOpenInput_Click;
+        btnOpenFolder.Text = "Open folder";
+        btnOpenFolder.AutoSize = true;
+        btnOpenFolder.Click += btnOpenFolder_Click;
 
         btnSaveProject.Text = "Save project";
         btnSaveProject.AutoSize = true;

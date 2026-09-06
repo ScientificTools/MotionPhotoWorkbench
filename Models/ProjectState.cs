@@ -6,6 +6,9 @@ namespace MotionPhotoWorkbench.Models;
 public sealed class ProjectState
 {
     public string InputFilePath { get; set; } = string.Empty;
+    // Missing in older projects: false preserves the video/motion-photo workflow.
+    public bool IsFolderSource { get; set; }
+    public List<string> SourceImageNames { get; set; } = new();
     public string WorkingDirectory { get; set; } = string.Empty;
     public List<FrameInfo> Frames { get; set; } = new();
     public ImageAdjustmentSettings Adjustments { get; set; } = ImageAdjustmentSettings.Default;

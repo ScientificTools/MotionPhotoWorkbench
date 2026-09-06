@@ -212,14 +212,31 @@ public partial class MainForm : Form
         if (ofd.ShowDialog(this) != DialogResult.OK)
             return;
 
-        string inputFile = ofd.FileName;
-        string workDir = Path.Combine(
+        await OpenSourceAsync(ofd.FileName, false);
+    }
+
+    private async void btnOpenFolder_Click(object sender, EventArgs e)
+    {
+        using var dialog = new FolderBrowserDialog
+        {
+            Description = "Select a folder containing images",
+            UseDescriptionForTitle = true,
+            ShowNewFolderButton = false
+        };
+        if (dialog.ShowDialog(this) == DialogResult.OK)
+            await OpenSourceAsync(dialog.SelectedPath, true);
+    }
+
+    private async Task OpenSourceAsync(string inputFile, bool isFolder)
+    {
+        string workDir = isFolder ? ImageFolderService.GetWorkingDirectory(inputFile) : Path.Combine(
             Path.GetDirectoryName(inputFile)!,
             Path.GetFileNameWithoutExtension(inputFile) + "_work");
 
         _project = new ProjectState
         {
             InputFilePath = inputFile,
+            IsFolderSource = isFolder,
             WorkingDirectory = workDir,
             TargetAnchor = new SDPointF(150, 150),
             OutputCrop = new Rectangle(0, 0, 300, 300),
@@ -231,13 +248,17 @@ public partial class MainForm : Form
 
         lblStatus.Text = "Preparing extraction...";
         UseWaitCursor = true;
+        topBar.Enabled = false;
 
         try
         {
             string framesDir = Path.Combine(workDir, "frames");
-            string sourceForExtraction = ResolveSourceForExtraction(inputFile, workDir, out string sourceMessage);
+            if (isFolder)
+                _project.SourceImageNames = ImageFolderService.GetImageNames(inputFile);
+            string sourceMessage = "Importing images from folder...";
+            string? sourceForExtraction = isFolder ? null : ResolveSourceForExtraction(inputFile, workDir, out sourceMessage);
             if (!HasExistingFrameCache(workDir) &&
-                !await ConfirmExtractionReadinessAsync(inputFile, workDir, sourceForExtraction, sourceMessage))
+                !await ConfirmExtractionReadinessAsync(inputFile, workDir, sourceForExtraction, sourceMessage, isFolder ? _project.SourceImageNames.Count : null))
             {
                 lblStatus.Text = "Ready.";
                 return;
@@ -246,11 +267,15 @@ public partial class MainForm : Form
             lblStatus.Text = sourceMessage;
             Application.DoEvents();
 
-            await _ffmpegService.ExtractFramesAsync(sourceForExtraction, framesDir);
-
-            var files = Directory.GetFiles(framesDir, "*.png")
-                .OrderBy(f => f, StringComparer.OrdinalIgnoreCase)
-                .ToList();
+            List<string> files;
+            if (isFolder)
+                files = await Task.Run(() => ImageFolderService.ImportAsync(inputFile, workDir, _project.SourceImageNames));
+            else
+            {
+                await _ffmpegService.ExtractFramesAsync(sourceForExtraction!, framesDir);
+                files = Directory.GetFiles(framesDir, "*.png")
+                    .OrderBy(f => f, StringComparer.OrdinalIgnoreCase).ToList();
+            }
 
             var validFiles = await Task.Run(() => FilterReadableFrames(files));
 
@@ -289,6 +314,7 @@ public partial class MainForm : Form
         }
         finally
         {
+            topBar.Enabled = true;
             UseWaitCursor = false;
         }
     }
@@ -1101,15 +1127,18 @@ public partial class MainForm : Form
         if (string.IsNullOrWhiteSpace(project.InputFilePath))
             throw new InvalidOperationException("The project does not contain a source image path.");
 
-        if (!File.Exists(project.InputFilePath))
-            throw new FileNotFoundException($"Source image not found: {project.InputFilePath}");
+        if (project.IsFolderSource ? !Directory.Exists(project.InputFilePath) : !File.Exists(project.InputFilePath))
+            throw new FileNotFoundException($"Source not found: {project.InputFilePath}");
 
         if (string.IsNullOrWhiteSpace(project.WorkingDirectory))
         {
-            project.WorkingDirectory = Path.Combine(
+            project.WorkingDirectory = project.IsFolderSource ? ImageFolderService.GetWorkingDirectory(project.InputFilePath) : Path.Combine(
                 Path.GetDirectoryName(project.InputFilePath)!,
                 Path.GetFileNameWithoutExtension(project.InputFilePath) + "_work");
         }
+
+        if (project.IsFolderSource)
+            ImageFolderService.ValidateWorkingDirectory(project.InputFilePath, project.WorkingDirectory);
 
         if (ProjectHasUsableFrames(project))
             return;
@@ -1130,15 +1159,22 @@ public partial class MainForm : Form
             .ToList();
 
         string framesDir = Path.Combine(project.WorkingDirectory, "frames");
-        string sourceForExtraction = ResolveSourceForExtraction(project.InputFilePath, project.WorkingDirectory, out string sourceMessage);
-        lblStatus.Text = $"{sourceMessage} Rebuilding frames...";
-        Application.DoEvents();
-
-        await _ffmpegService.ExtractFramesAsync(sourceForExtraction, framesDir);
-
-        var files = Directory.GetFiles(framesDir, "*.png")
-            .OrderBy(f => f, StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        List<string> files;
+        if (project.IsFolderSource)
+        {
+            if (project.SourceImageNames.Count == 0)
+                project.SourceImageNames = ImageFolderService.GetImageNames(project.InputFilePath);
+            files = await Task.Run(() => ImageFolderService.ImportAsync(project.InputFilePath, project.WorkingDirectory, project.SourceImageNames));
+        }
+        else
+        {
+            string sourceForExtraction = ResolveSourceForExtraction(project.InputFilePath, project.WorkingDirectory, out string sourceMessage);
+            lblStatus.Text = $"{sourceMessage} Rebuilding frames...";
+            Application.DoEvents();
+            await _ffmpegService.ExtractFramesAsync(sourceForExtraction, framesDir);
+            files = Directory.GetFiles(framesDir, "*.png")
+                .OrderBy(f => f, StringComparer.OrdinalIgnoreCase).ToList();
+        }
 
         var validFiles = await Task.Run(() => FilterReadableFrames(files));
         var savedByIndex = savedFrames.ToDictionary(frame => frame.Index);
@@ -1211,6 +1247,13 @@ public partial class MainForm : Form
 
     private async Task<bool> ConfirmProjectLoadReadinessAsync(ProjectState project)
     {
+        if (project.IsFolderSource)
+        {
+            if (string.IsNullOrWhiteSpace(project.WorkingDirectory))
+                project.WorkingDirectory = ImageFolderService.GetWorkingDirectory(project.InputFilePath);
+            ImageFolderService.ValidateWorkingDirectory(project.InputFilePath, project.WorkingDirectory);
+            return true;
+        }
         if (string.IsNullOrWhiteSpace(project.WorkingDirectory))
         {
             project.WorkingDirectory = Path.Combine(
@@ -1247,7 +1290,7 @@ public partial class MainForm : Form
         string sourceMessage,
         int? knownFrameCount = null)
     {
-        if (!EnsureFfmpegAvailableOrShowMessage())
+        if (sourceForExtraction is not null && !EnsureFfmpegAvailableOrShowMessage())
             return false;
 
         int? frameCount = knownFrameCount;
@@ -1866,6 +1909,18 @@ public partial class MainForm : Form
             return;
 
         string workDir = _project.WorkingDirectory;
+        if (_project.IsFolderSource)
+        {
+            try
+            {
+                ImageFolderService.ValidateWorkingDirectory(_project.InputFilePath, workDir);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, ex.Message, "Safety check", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+        }
         string trimmedWorkDir = workDir.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
         string directoryName = Path.GetFileName(trimmedWorkDir);
 
@@ -1916,6 +1971,7 @@ public partial class MainForm : Form
 
     private static void NormalizeProjectState(ProjectState project)
     {
+        project.SourceImageNames ??= new();
         if (project.Adjustments is null)
             project.Adjustments = ImageAdjustmentSettings.Default;
     }
