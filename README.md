@@ -15,6 +15,7 @@ End users should download official Windows builds from GitHub `Releases`. For re
 - Adjust brightness, contrast, saturation, temperature, sharpness, highlights, and shadows
 - Preview the automatic crop and refine it before export
 - Export to GIF, MP4, WebM, or animated WebP
+- View the saved export in a popup with looping playback using the Visualiser button
 - Save and reload project state as JSON
 
 ## Current Status
@@ -30,6 +31,7 @@ End users should download official Windows builds from GitHub `Releases`. For re
 - Windows
 - .NET 8 SDK
 - FFmpeg available next to the compiled executable as `ffmpeg.exe`
+- [Microsoft Edge WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/) for export playback (exporting itself does not require it)
 
 ## For End Users
 

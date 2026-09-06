@@ -974,26 +974,31 @@ public partial class MainForm : Form
                 case PreviewForm.PreviewExportChoice.Mpeg:
                     await _ffmpegService.ExportMpegAsync(exportFrames, sfd.FileName, _project.VideoFps, _project.WorkingDirectory);
                     lblStatus.Text = "MP4 export completed.";
-                    MessageBox.Show(previewForm, "MP4 export completed.", "Export", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     break;
                 case PreviewForm.PreviewExportChoice.WebM:
                     await _ffmpegService.ExportWebMAsync(exportFrames, sfd.FileName, _project.VideoFps, _project.WorkingDirectory);
                     lblStatus.Text = "WebM export completed.";
-                    MessageBox.Show(previewForm, "WebM export completed.", "Export", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     break;
                 case PreviewForm.PreviewExportChoice.WebP:
                     await _ffmpegService.ExportAnimatedWebpAsync(exportFrames, sfd.FileName, _project.VideoFps, _project.WorkingDirectory);
                     lblStatus.Text = "WebP export completed.";
-                    MessageBox.Show(previewForm, "WebP export completed.", "Export", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     break;
                 case PreviewForm.PreviewExportChoice.Gif:
                     _gifExportService.ExportGif(exportFrames, sfd.FileName, ConvertFpsToGifDelayCs(_project.VideoFps));
                     lblStatus.Text = "GIF export completed.";
-                    MessageBox.Show(previewForm, "GIF export completed.", "Export", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     break;
             }
 
             previewForm.EndBusy("Ready.");
+            DialogResult completionChoice;
+            using (var completedForm = new ExportCompletedForm(lblStatus.Text))
+                completionChoice = completedForm.ShowDialog(previewForm);
+
+            if (completionChoice == DialogResult.Yes)
+            {
+                using var player = new ExportPlaybackForm(sfd.FileName);
+                player.ShowDialog(previewForm);
+            }
         }
         catch
         {
