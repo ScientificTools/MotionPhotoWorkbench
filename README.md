@@ -10,14 +10,22 @@ End users should download official Windows builds from GitHub `Releases`. For re
 
 - Open a motion photo compatible JPEG, a regular image, or a video file
 - Extract frames through FFmpeg
+- Import an existing image folder without FFmpeg using **Open folder**
 - Select kept or discarded frames
 - Place an anchor point per frame and align the sequence
 - Adjust brightness, contrast, saturation, temperature, sharpness, highlights, and shadows
 - Preview the automatic crop and refine it before export
 - Export to GIF, MP4, WebM, or animated WebP
+- View the saved export in a popup with looping playback using the Visualiser button
 - Save and reload project state as JSON
 
 ## Current Status
+
+**Open video or motion picture** uses the existing FFmpeg workflow. **Open folder** imports PNG, JPG, JPEG, GIF and BMP files directly from the selected folder (no subfolders), sorted alphabetically by filename, ignoring case. Each file becomes `frame_001.png`, `frame_002.png`, etc. in `<selected folder>\_work\frames`. Animated GIFs contribute their first frame. Source files are never modified.
+
+Folder projects support the same alignment, adjustments, export and JSON save/load workflow. The project remembers the imported filenames and their order so rebuilding a deleted cache preserves frame settings; the original files must still be available. Existing video projects remain compatible.
+
+Import regression checks: `dotnet run --project tests/FolderImportChecks`.
 
 - Target framework: `.NET 8`
 - UI technology: `WinForms`
@@ -30,6 +38,7 @@ End users should download official Windows builds from GitHub `Releases`. For re
 - Windows
 - .NET 8 SDK
 - FFmpeg available next to the compiled executable as `ffmpeg.exe`
+- [Microsoft Edge WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/) for export playback (exporting itself does not require it)
 
 ## For End Users
 

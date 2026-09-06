@@ -75,18 +75,29 @@ public partial class MainForm : Form
         WindowState = FormWindowState.Maximized;
         pictureBoxFrame.SizeMode = PictureBoxSizeMode.Normal;
         pictureBoxFrame.MouseEnter += (_, _) => pictureBoxFrame.Focus();
+        EnableDoubleBuffering(splitMain);
+        EnableDoubleBuffering(splitRight);
+        EnableDoubleBuffering(imagePanel);
+        EnableDoubleBuffering(pictureBoxFrame);
+        splitMain.SplitterMoving += (_, _) => pictureBoxFrame.Invalidate();
+        splitRight.SplitterMoving += (_, _) => pictureBoxFrame.Invalidate();
+        splitMain.SplitterMoved += SplitContainer_SplitterMoved;
+        splitRight.SplitterMoved += SplitContainer_SplitterMoved;
         listBoxFrames.DrawMode = DrawMode.OwnerDrawFixed;
         listBoxFrames.ItemHeight = Math.Max(listBoxFrames.Font.Height + 10, 28);
         listBoxFrames.DrawItem += listBoxFrames_DrawItem;
         btnPrev.MinimumSize = new Size(0, 40);
         btnNext.MinimumSize = new Size(0, 40);
         btnToggleKeep.MinimumSize = new Size(0, 40);
+        btnDeleteAnchors.MinimumSize = new Size(0, 40);
         btnAutoAnchorOtherFrames.MinimumSize = new Size(0, 40);
         btnPrev.Height = 40;
         btnNext.Height = 40;
         btnToggleKeep.Height = 40;
+        btnDeleteAnchors.Height = 40;
         btnAutoAnchorOtherFrames.Height = 40;
         btnToggleKeep.MinimumSize = new Size(0, 44);
+        btnDeleteAnchors.MinimumSize = new Size(0, 44);
         btnAutoAnchorOtherFrames.MinimumSize = new Size(0, 44);
         btnRenderAndExportGif.AutoSize = false;
         btnRenderAndExportGif.MinimumSize = new Size(0, 48);
@@ -130,6 +141,22 @@ public partial class MainForm : Form
             ClampImagePanOffset();
             pictureBoxFrame.Invalidate();
         }
+    }
+
+    private void SplitContainer_SplitterMoved(object? sender, SplitterEventArgs e)
+    {
+        ClampImagePanOffset();
+        pictureBoxFrame.Invalidate();
+    }
+
+    private static void EnableDoubleBuffering(Control control)
+    {
+        typeof(Control).InvokeMember(
+            "DoubleBuffered",
+            System.Reflection.BindingFlags.SetProperty | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic,
+            null,
+            control,
+            new object[] { true });
     }
 
     private void ApplyResponsiveLayout()
@@ -185,14 +212,31 @@ public partial class MainForm : Form
         if (ofd.ShowDialog(this) != DialogResult.OK)
             return;
 
-        string inputFile = ofd.FileName;
-        string workDir = Path.Combine(
+        await OpenSourceAsync(ofd.FileName, false);
+    }
+
+    private async void btnOpenFolder_Click(object sender, EventArgs e)
+    {
+        using var dialog = new FolderBrowserDialog
+        {
+            Description = "Select a folder containing images",
+            UseDescriptionForTitle = true,
+            ShowNewFolderButton = false
+        };
+        if (dialog.ShowDialog(this) == DialogResult.OK)
+            await OpenSourceAsync(dialog.SelectedPath, true);
+    }
+
+    private async Task OpenSourceAsync(string inputFile, bool isFolder)
+    {
+        string workDir = isFolder ? ImageFolderService.GetWorkingDirectory(inputFile) : Path.Combine(
             Path.GetDirectoryName(inputFile)!,
             Path.GetFileNameWithoutExtension(inputFile) + "_work");
 
         _project = new ProjectState
         {
             InputFilePath = inputFile,
+            IsFolderSource = isFolder,
             WorkingDirectory = workDir,
             TargetAnchor = new SDPointF(150, 150),
             OutputCrop = new Rectangle(0, 0, 300, 300),
@@ -204,13 +248,17 @@ public partial class MainForm : Form
 
         lblStatus.Text = "Preparing extraction...";
         UseWaitCursor = true;
+        topBar.Enabled = false;
 
         try
         {
             string framesDir = Path.Combine(workDir, "frames");
-            string sourceForExtraction = ResolveSourceForExtraction(inputFile, workDir, out string sourceMessage);
+            if (isFolder)
+                _project.SourceImageNames = ImageFolderService.GetImageNames(inputFile);
+            string sourceMessage = "Importing images from folder...";
+            string? sourceForExtraction = isFolder ? null : ResolveSourceForExtraction(inputFile, workDir, out sourceMessage);
             if (!HasExistingFrameCache(workDir) &&
-                !await ConfirmExtractionReadinessAsync(inputFile, workDir, sourceForExtraction, sourceMessage))
+                !await ConfirmExtractionReadinessAsync(inputFile, workDir, sourceForExtraction, sourceMessage, isFolder ? _project.SourceImageNames.Count : null))
             {
                 lblStatus.Text = "Ready.";
                 return;
@@ -219,11 +267,15 @@ public partial class MainForm : Form
             lblStatus.Text = sourceMessage;
             Application.DoEvents();
 
-            await _ffmpegService.ExtractFramesAsync(sourceForExtraction, framesDir);
-
-            var files = Directory.GetFiles(framesDir, "*.png")
-                .OrderBy(f => f, StringComparer.OrdinalIgnoreCase)
-                .ToList();
+            List<string> files;
+            if (isFolder)
+                files = await Task.Run(() => ImageFolderService.ImportAsync(inputFile, workDir, _project.SourceImageNames));
+            else
+            {
+                await _ffmpegService.ExtractFramesAsync(sourceForExtraction!, framesDir);
+                files = Directory.GetFiles(framesDir, "*.png")
+                    .OrderBy(f => f, StringComparer.OrdinalIgnoreCase).ToList();
+            }
 
             var validFiles = await Task.Run(() => FilterReadableFrames(files));
 
@@ -262,6 +314,7 @@ public partial class MainForm : Form
         }
         finally
         {
+            topBar.Enabled = true;
             UseWaitCursor = false;
         }
     }
@@ -364,13 +417,8 @@ public partial class MainForm : Form
 
     private void UpdateAutoAnchorButtonVisibility()
     {
-        bool isVisible =
-            _currentIndex >= 0 &&
-            _currentIndex < _project.Frames.Count &&
-            _project.Frames[_currentIndex].AnchorPoint.HasValue;
-
-        btnAutoAnchorOtherFrames.Visible = isVisible;
-        btnAutoAnchorOtherFrames.Enabled = isVisible;
+        btnAutoAnchorOtherFrames.Visible = true;
+        btnAutoAnchorOtherFrames.Enabled = true;
     }
 
     private void listBoxFrames_SelectedIndexChanged(object sender, EventArgs e)
@@ -448,8 +496,10 @@ public partial class MainForm : Form
             ? frame.AnchorPoint.HasValue ? "ANCHOR" : "TO PLACE"
             : "DISCARDED";
 
-        Rectangle textBounds = new(e.Bounds.X + 6, e.Bounds.Y + 1, Math.Max(0, e.Bounds.Width - 142), e.Bounds.Height - 2);
-        Rectangle badgeBounds = new(e.Bounds.Right - 130, e.Bounds.Y + 1, 124, e.Bounds.Height - 2);
+        // Size the badge to its own text so the status is never truncated, regardless of list width.
+        int badgeWidth = TextRenderer.MeasureText(e.Graphics, status, e.Font, new Size(int.MaxValue, e.Bounds.Height), TextFormatFlags.NoPadding).Width + 12;
+        Rectangle textBounds = new(e.Bounds.X + 6, e.Bounds.Y + 1, Math.Max(0, e.Bounds.Width - badgeWidth - 12), e.Bounds.Height - 2);
+        Rectangle badgeBounds = new(e.Bounds.Right - badgeWidth - 6, e.Bounds.Y + 1, badgeWidth, e.Bounds.Height - 2);
 
         TextRenderer.DrawText(
             e.Graphics,
@@ -536,6 +586,7 @@ public partial class MainForm : Form
             return;
 
         _project.Frames[_currentIndex].AnchorPoint = imgPoint.Value;
+        _project.Frames[_currentIndex].IsAnchorUncertain = false;
         UpdateFrameInfo();
         pictureBoxFrame.Invalidate();
         RefreshFrameList();
@@ -636,23 +687,58 @@ public partial class MainForm : Form
         listBoxFrames.SelectedIndex = _currentIndex;
     }
 
+    private void btnDeleteAnchors_Click(object? sender, EventArgs e)
+    {
+        foreach (FrameInfo frame in _project.Frames)
+        {
+            frame.AnchorPoint = null;
+            frame.IsAnchorUncertain = false;
+        }
+
+        UpdateFrameInfo();
+        RefreshFrameList();
+        pictureBoxFrame.Invalidate();
+    }
+
     private async void btnAutoAnchorOtherFrames_Click(object? sender, EventArgs e)
     {
         if (_currentIndex < 0 || _currentIndex >= _project.Frames.Count)
+        {
+            MessageBox.Show(
+                this,
+                "Load an image or project first, then set an anchor point on the first frame to calculate the matching anchor point on the other frames.",
+                "Auto anchor",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
             return;
+        }
 
         FrameInfo referenceFrame = _project.Frames[_currentIndex];
         if (!referenceFrame.AnchorPoint.HasValue)
+        {
+            MessageBox.Show(
+                this,
+                "Set an anchor point on the first frame to calculate the matching anchor point on the other frames.",
+                "Auto anchor",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+            return;
+        }
+
+        if (!await EnsureProjectCacheAvailableAsync("auto-anchor the following frames", _currentIndex))
             return;
 
-        if (!await EnsureProjectCacheAvailableAsync("auto-anchor the other frames", _currentIndex))
-            return;
+        foreach (FrameInfo frame in _project.Frames.Where(frame => frame.IsKept && frame.Index > referenceFrame.Index))
+        {
+            frame.AnchorPoint = null;
+            frame.IsAnchorUncertain = false;
+        }
 
-        int candidateCount = _project.Frames.Count(frame => frame.IsKept && frame.Index != referenceFrame.Index);
+        int candidateCount = _project.Frames.Count(frame => frame.IsKept && frame.Index > referenceFrame.Index);
 
         if (candidateCount == 0)
         {
-            lblStatus.Text = "No other active frames to auto-anchor.";
+            lblStatus.Text = "No following active frames to auto-anchor.";
             return;
         }
 
@@ -724,7 +810,7 @@ public partial class MainForm : Form
 
                 lblStatus.Text = "Previewing automatic crop...";
                 using (var previewImage = LoadPreviewImage(renderResult.PreviewPath))
-                using (var previewForm = new PreviewForm(previewImage, renderResult.IntersectionCrop, _project.VideoFps, additionalCrop))
+                using (var previewForm = new PreviewForm(previewImage, renderResult.IntersectionCrop, GetInitialPreviewFps(), additionalCrop))
                 {
                     previewForm.ExportRequestedAsync = (form, choice) => ExecutePreviewExportAsync(form, choice, renderResult.IntersectionCrop, alignedBase);
 
@@ -885,6 +971,13 @@ public partial class MainForm : Form
                 exportFrames = (await _alignmentService.ApplyAdditionalCropAsync(alignedBase, additionalCrop, finalDir)).ToList();
             }
 
+            // HalfFrameRate already folds its own sequence to loop without a jump, so stacking
+            // the generic ping-pong fold on top would needlessly double the frame count again.
+            if (_project.HalfFrameRate)
+                exportFrames = ApplyHalfFrameRate(exportFrames);
+            else if (_project.PingPongPlayback)
+                exportFrames = ApplyPingPongPlayback(exportFrames);
+
             _project.OutputCrop = new Rectangle(
                 intersectionCrop.X + additionalCrop.X,
                 intersectionCrop.Y + additionalCrop.Y,
@@ -907,26 +1000,31 @@ public partial class MainForm : Form
                 case PreviewForm.PreviewExportChoice.Mpeg:
                     await _ffmpegService.ExportMpegAsync(exportFrames, sfd.FileName, _project.VideoFps, _project.WorkingDirectory);
                     lblStatus.Text = "MP4 export completed.";
-                    MessageBox.Show(previewForm, "MP4 export completed.", "Export", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     break;
                 case PreviewForm.PreviewExportChoice.WebM:
                     await _ffmpegService.ExportWebMAsync(exportFrames, sfd.FileName, _project.VideoFps, _project.WorkingDirectory);
                     lblStatus.Text = "WebM export completed.";
-                    MessageBox.Show(previewForm, "WebM export completed.", "Export", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     break;
                 case PreviewForm.PreviewExportChoice.WebP:
                     await _ffmpegService.ExportAnimatedWebpAsync(exportFrames, sfd.FileName, _project.VideoFps, _project.WorkingDirectory);
                     lblStatus.Text = "WebP export completed.";
-                    MessageBox.Show(previewForm, "WebP export completed.", "Export", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     break;
                 case PreviewForm.PreviewExportChoice.Gif:
                     _gifExportService.ExportGif(exportFrames, sfd.FileName, ConvertFpsToGifDelayCs(_project.VideoFps));
                     lblStatus.Text = "GIF export completed.";
-                    MessageBox.Show(previewForm, "GIF export completed.", "Export", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     break;
             }
 
             previewForm.EndBusy("Ready.");
+            DialogResult completionChoice;
+            using (var completedForm = new ExportCompletedForm(lblStatus.Text))
+                completionChoice = completedForm.ShowDialog(previewForm);
+
+            if (completionChoice == DialogResult.Yes)
+            {
+                using var player = new ExportPlaybackForm(sfd.FileName);
+                player.ShowDialog(previewForm);
+            }
         }
         catch
         {
@@ -1029,15 +1127,18 @@ public partial class MainForm : Form
         if (string.IsNullOrWhiteSpace(project.InputFilePath))
             throw new InvalidOperationException("The project does not contain a source image path.");
 
-        if (!File.Exists(project.InputFilePath))
-            throw new FileNotFoundException($"Source image not found: {project.InputFilePath}");
+        if (project.IsFolderSource ? !Directory.Exists(project.InputFilePath) : !File.Exists(project.InputFilePath))
+            throw new FileNotFoundException($"Source not found: {project.InputFilePath}");
 
         if (string.IsNullOrWhiteSpace(project.WorkingDirectory))
         {
-            project.WorkingDirectory = Path.Combine(
+            project.WorkingDirectory = project.IsFolderSource ? ImageFolderService.GetWorkingDirectory(project.InputFilePath) : Path.Combine(
                 Path.GetDirectoryName(project.InputFilePath)!,
                 Path.GetFileNameWithoutExtension(project.InputFilePath) + "_work");
         }
+
+        if (project.IsFolderSource)
+            ImageFolderService.ValidateWorkingDirectory(project.InputFilePath, project.WorkingDirectory);
 
         if (ProjectHasUsableFrames(project))
             return;
@@ -1051,21 +1152,29 @@ public partial class MainForm : Form
                 SourcePath = frame.SourcePath,
                 IsKept = frame.IsKept,
                 AnchorPoint = frame.AnchorPoint,
+                IsAnchorUncertain = frame.IsAnchorUncertain,
                 OffsetX = frame.OffsetX,
                 OffsetY = frame.OffsetY
             })
             .ToList();
 
         string framesDir = Path.Combine(project.WorkingDirectory, "frames");
-        string sourceForExtraction = ResolveSourceForExtraction(project.InputFilePath, project.WorkingDirectory, out string sourceMessage);
-        lblStatus.Text = $"{sourceMessage} Rebuilding frames...";
-        Application.DoEvents();
-
-        await _ffmpegService.ExtractFramesAsync(sourceForExtraction, framesDir);
-
-        var files = Directory.GetFiles(framesDir, "*.png")
-            .OrderBy(f => f, StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        List<string> files;
+        if (project.IsFolderSource)
+        {
+            if (project.SourceImageNames.Count == 0)
+                project.SourceImageNames = ImageFolderService.GetImageNames(project.InputFilePath);
+            files = await Task.Run(() => ImageFolderService.ImportAsync(project.InputFilePath, project.WorkingDirectory, project.SourceImageNames));
+        }
+        else
+        {
+            string sourceForExtraction = ResolveSourceForExtraction(project.InputFilePath, project.WorkingDirectory, out string sourceMessage);
+            lblStatus.Text = $"{sourceMessage} Rebuilding frames...";
+            Application.DoEvents();
+            await _ffmpegService.ExtractFramesAsync(sourceForExtraction, framesDir);
+            files = Directory.GetFiles(framesDir, "*.png")
+                .OrderBy(f => f, StringComparer.OrdinalIgnoreCase).ToList();
+        }
 
         var validFiles = await Task.Run(() => FilterReadableFrames(files));
         var savedByIndex = savedFrames.ToDictionary(frame => frame.Index);
@@ -1081,6 +1190,7 @@ public partial class MainForm : Form
                         SourcePath = path,
                         IsKept = savedFrame.IsKept,
                         AnchorPoint = savedFrame.AnchorPoint,
+                        IsAnchorUncertain = savedFrame.IsAnchorUncertain,
                         OffsetX = savedFrame.OffsetX,
                         OffsetY = savedFrame.OffsetY
                     };
@@ -1137,6 +1247,13 @@ public partial class MainForm : Form
 
     private async Task<bool> ConfirmProjectLoadReadinessAsync(ProjectState project)
     {
+        if (project.IsFolderSource)
+        {
+            if (string.IsNullOrWhiteSpace(project.WorkingDirectory))
+                project.WorkingDirectory = ImageFolderService.GetWorkingDirectory(project.InputFilePath);
+            ImageFolderService.ValidateWorkingDirectory(project.InputFilePath, project.WorkingDirectory);
+            return true;
+        }
         if (string.IsNullOrWhiteSpace(project.WorkingDirectory))
         {
             project.WorkingDirectory = Path.Combine(
@@ -1173,7 +1290,7 @@ public partial class MainForm : Form
         string sourceMessage,
         int? knownFrameCount = null)
     {
-        if (!EnsureFfmpegAvailableOrShowMessage())
+        if (sourceForExtraction is not null && !EnsureFfmpegAvailableOrShowMessage())
             return false;
 
         int? frameCount = knownFrameCount;
@@ -1362,22 +1479,20 @@ public partial class MainForm : Form
         if (referencePosition < 0)
             return new AutoAnchorBatchResult(0, 0);
 
-        AutoAnchorBatchResult forwardResult = AutoAnchorInDirection(keptFrames, referencePosition, step: 1);
-        AutoAnchorBatchResult backwardResult = AutoAnchorInDirection(keptFrames, referencePosition, step: -1);
-
-        return new AutoAnchorBatchResult(
-            forwardResult.UpdatedCount + backwardResult.UpdatedCount,
-            forwardResult.FailedCount + backwardResult.FailedCount);
+        return AutoAnchorForward(keptFrames, referencePosition);
     }
 
-    private AutoAnchorBatchResult AutoAnchorInDirection(IReadOnlyList<FrameInfo> keptFrames, int startIndex, int step)
+    private AutoAnchorBatchResult AutoAnchorForward(IReadOnlyList<FrameInfo> keptFrames, int startIndex)
     {
         int updatedCount = 0;
         int failedCount = 0;
         FrameInfo currentReferenceFrame = keptFrames[startIndex];
         PointF currentReferenceAnchor = currentReferenceFrame.AnchorPoint!.Value;
+        bool chainUncertain = currentReferenceFrame.IsAnchorUncertain;
+        float stopConfidence = _project.AutoAnchorStopConfidence;
+        float doubtConfidence = _project.AutoAnchorDoubtConfidence;
 
-        for (int index = startIndex + step; index >= 0 && index < keptFrames.Count; index += step)
+        for (int index = startIndex + 1; index < keptFrames.Count; index++)
         {
             FrameInfo candidateFrame = keptFrames[index];
 
@@ -1390,7 +1505,8 @@ public partial class MainForm : Form
             AutoAnchorSearchResult searchResult = _anchorAutoDetectionService.FindAnchor(
                 currentReferenceFrame.SourcePath,
                 currentReferenceAnchor,
-                candidateFrame.SourcePath);
+                candidateFrame.SourcePath,
+                stopConfidence);
 
             if (!searchResult.Success || !searchResult.AnchorPoint.HasValue)
             {
@@ -1398,7 +1514,10 @@ public partial class MainForm : Form
                 continue;
             }
 
+            chainUncertain = chainUncertain || searchResult.Score < doubtConfidence;
+
             candidateFrame.AnchorPoint = searchResult.AnchorPoint.Value;
+            candidateFrame.IsAnchorUncertain = chainUncertain;
             currentReferenceFrame = candidateFrame;
             currentReferenceAnchor = searchResult.AnchorPoint.Value;
             updatedCount++;
@@ -1563,11 +1682,47 @@ public partial class MainForm : Form
             trackHighlights.Value = FloatToSignedTrackValue(_project.Adjustments.Highlights);
             trackShadows.Value = FloatToSignedTrackValue(_project.Adjustments.Shadows);
             UpdateAdjustmentValueLabels();
+            numAutoAnchorStopThreshold.Value = (decimal)Math.Clamp(_project.AutoAnchorStopConfidence * 100f, 0f, 100f);
+            numAutoAnchorDoubtThreshold.Value = (decimal)Math.Clamp(_project.AutoAnchorDoubtConfidence * 100f, 0f, 100f);
+            chkPingPongPlayback.Checked = _project.PingPongPlayback;
+            chkHalfFrameRate.Checked = _project.HalfFrameRate;
         }
         finally
         {
             _isSyncingAdjustmentControls = false;
         }
+    }
+
+    private void chkPingPongPlayback_CheckedChanged(object? sender, EventArgs e)
+    {
+        if (_isSyncingAdjustmentControls)
+            return;
+
+        _project.PingPongPlayback = chkPingPongPlayback.Checked;
+    }
+
+    private void chkHalfFrameRate_CheckedChanged(object? sender, EventArgs e)
+    {
+        if (_isSyncingAdjustmentControls)
+            return;
+
+        _project.HalfFrameRate = chkHalfFrameRate.Checked;
+    }
+
+    private void numAutoAnchorStopThreshold_ValueChanged(object? sender, EventArgs e)
+    {
+        if (_isSyncingAdjustmentControls)
+            return;
+
+        _project.AutoAnchorStopConfidence = (float)(numAutoAnchorStopThreshold.Value / 100m);
+    }
+
+    private void numAutoAnchorDoubtThreshold_ValueChanged(object? sender, EventArgs e)
+    {
+        if (_isSyncingAdjustmentControls)
+            return;
+
+        _project.AutoAnchorDoubtConfidence = (float)(numAutoAnchorDoubtThreshold.Value / 100m);
     }
 
     private ImageAdjustmentSettings ReadAdjustmentsFromControls()
@@ -1754,6 +1909,18 @@ public partial class MainForm : Form
             return;
 
         string workDir = _project.WorkingDirectory;
+        if (_project.IsFolderSource)
+        {
+            try
+            {
+                ImageFolderService.ValidateWorkingDirectory(_project.InputFilePath, workDir);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, ex.Message, "Safety check", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+        }
         string trimmedWorkDir = workDir.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
         string directoryName = Path.GetFileName(trimmedWorkDir);
 
@@ -1804,6 +1971,7 @@ public partial class MainForm : Form
 
     private static void NormalizeProjectState(ProjectState project)
     {
+        project.SourceImageNames ??= new();
         if (project.Adjustments is null)
             project.Adjustments = ImageAdjustmentSettings.Default;
     }
@@ -1819,6 +1987,50 @@ public partial class MainForm : Form
     {
         int safeFps = Math.Max(1, fps);
         return Math.Max(1, (int)Math.Round(100d / safeFps, MidpointRounding.AwayFromZero));
+    }
+
+    private int GetInitialPreviewFps()
+    {
+        return _project.VideoFps;
+    }
+
+    // Ne garde qu'une frame sur deux (positions impaires en base 1) en repliant le reste pour boucler sans saut
+    private static List<string> ApplyHalfFrameRate(IReadOnlyList<string> frames)
+    {
+        if (frames.Count <= 2)
+            return frames.ToList();
+
+        var oddIndexed = new List<string>();
+        for (int i = 0; i < frames.Count; i += 2)
+            oddIndexed.Add(frames[i]);
+
+        var result = new List<string>(oddIndexed);
+
+        if (frames.Count % 2 == 1)
+        {
+            for (int i = oddIndexed.Count - 2; i >= 1; i--)
+                result.Add(oddIndexed[i]);
+        }
+        else
+        {
+            for (int i = frames.Count - 1; i >= 1; i -= 2)
+                result.Add(frames[i]);
+        }
+
+        return result;
+    }
+
+    // Rejoue la s\u00e9quence en marche arri\u00e8re (hors extr\u00e9mit\u00e9s) pour boucler sans saut d'image
+    private static List<string> ApplyPingPongPlayback(IReadOnlyList<string> frames)
+    {
+        if (frames.Count <= 2)
+            return frames.ToList();
+
+        var result = new List<string>(frames);
+        for (int i = frames.Count - 2; i >= 1; i--)
+            result.Add(frames[i]);
+
+        return result;
     }
 
     private static Rectangle? TryCreatePreviewInitialCrop(Rectangle intersectionCrop, Rectangle savedOutputCrop)
@@ -1850,7 +2062,7 @@ public partial class MainForm : Form
             return Color.Firebrick;
 
         if (frame.AnchorPoint.HasValue)
-            return Color.ForestGreen;
+            return frame.IsAnchorUncertain ? Color.DarkOrange : Color.ForestGreen;
 
         return Color.Black;
     }

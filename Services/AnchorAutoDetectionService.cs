@@ -13,16 +13,16 @@ public sealed class AnchorAutoDetectionService
     private const int PreferredPatchRadius = 12;
     private const int MinimumPatchRadius = 4;
     private const int SearchRadius = 36;
-    private const float MinimumConfidence = 0.82f;
+    private const float DefaultMinimumConfidence = 0.82f;
 
-    public AutoAnchorSearchResult FindAnchor(string referenceImagePath, SDPointF referenceAnchor, string candidateImagePath)
+    public AutoAnchorSearchResult FindAnchor(string referenceImagePath, SDPointF referenceAnchor, string candidateImagePath, float minimumConfidence = DefaultMinimumConfidence)
     {
         using ISImageRgba32 referenceImage = ISImage.Load<Rgba32>(referenceImagePath);
         using ISImageRgba32 candidateImage = ISImage.Load<Rgba32>(candidateImagePath);
-        return FindAnchor(referenceImage, referenceAnchor, candidateImage);
+        return FindAnchor(referenceImage, referenceAnchor, candidateImage, minimumConfidence);
     }
 
-    public AutoAnchorSearchResult FindAnchor(ISImageRgba32 referenceImage, SDPointF referenceAnchor, ISImageRgba32 candidateImage)
+    public AutoAnchorSearchResult FindAnchor(ISImageRgba32 referenceImage, SDPointF referenceAnchor, ISImageRgba32 candidateImage, float minimumConfidence = DefaultMinimumConfidence)
     {
         int referenceX = (int)MathF.Round(referenceAnchor.X);
         int referenceY = (int)MathF.Round(referenceAnchor.Y);
@@ -60,7 +60,7 @@ public sealed class AnchorAutoDetectionService
             }
         }
 
-        if (bestScore < MinimumConfidence)
+        if (bestScore < minimumConfidence)
             return AutoAnchorSearchResult.NotFound($"No reliable match found (best score {bestScore:0.000}).");
 
         return AutoAnchorSearchResult.Found(new SDPointF(bestPoint.X, bestPoint.Y), bestScore);
