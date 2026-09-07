@@ -1,191 +1,79 @@
 # MotionPhotoWorkbench
 
-Desktop tool for extracting frames from a motion photo or video, choosing anchor points, aligning the kept frames, adjusting the image, and exporting the result as GIF, MP4, WebM, or animated WebP.
+**Que fait cet outil ?**
+Il a pour but de retraiter une video courte, ou une photo animée (smartphone, appareil photo prenant en rafale entre 20 et 80 images ), en effectuant des traitements image par image, avant de reconstituer une video dans un format d'export standard, **léger, et adapté aux pages Web** (webM, webP, Mpeg). Vous pourrez choisir les photos à garder, stabiliser l'animation avec un système d'ancrage automatique, appliquer une colorimétrie à l'ensemble des images, cropper le résultat dans un rectangle aux ratios choisis, définir une vitesse de défilement en img/s et contrôler le résultat puis l'exporter dans un format d'export standard, léger, exploitable directement dans une page WEB (webM, Mpeg, webP, gif animé) ou lecteur video (webM, Mpeg).
 
-This repository is currently focused on Windows and WinForms. The codebase is published as source code for learning, inspection, and contribution, without a support commitment.
+**Exemple** : Image animée source provenant d'un Pixel 9A en digiscopie sur une longue vue, **avec forte instabilité** de 3,5 Mo 
 
-End users should download official Windows builds from GitHub `Releases`. For release provenance and signing information, see the `Code Signing Policy` section below.
+[rougeGorge_source.webm](https://github.com/user-attachments/assets/6a9e5c65-248a-49af-a273-41ece9fb6861) 
 
-## Features
 
-- Open a motion photo compatible JPEG, a regular image, or a video file
-- Extract frames through FFmpeg
-- Import an existing image folder without FFmpeg using **Open folder**
-- Select kept or discarded frames
-- Place an anchor point per frame and align the sequence
-- Adjust brightness, contrast, saturation, temperature, sharpness, highlights, and shadows
-- Preview the automatic crop and refine it before export
-- Export to GIF, MP4, WebM, or animated WebP
-- View the saved export in a popup with looping playback using the Visualiser button
-- Save and reload project state as JSON
+**Résultat ci dessous** : 
 
-## Current Status
+Vidéo après traitement, au format **WEBM** de **0,3 Mo**, avec **recentrage automatique des images**, **colorimétrie**, et **sélection de la zone d'export au ratio 4/3**. Ce traitement a été fait avec l'option **round trip (yoyo)** qui double les images avec la séquence avant, puis la même séquence en sens inverse, afin que la dernière image revienne sur la première. **L'option "une image sur deux"** a permis d'avoir le même nombre d'image que la séquence normale afin de garder la même taille (à peu près). La **vitesse de défilement**, par défaut à 20 images par secondes a été diminuée à 10 pour avoir le même rendu des mouvements.
 
-**Open video or motion picture** uses the existing FFmpeg workflow. **Open folder** imports PNG, JPG, JPEG, GIF and BMP files directly from the selected folder (no subfolders), sorted alphabetically by filename, ignoring case. Each file becomes `frame_001.png`, `frame_002.png`, etc. in `<selected folder>\_work\frames`. Animated GIFs contribute their first frame. Source files are never modified.
+[RougeGorge__stabilise_roundTrip_1ImageSur2_colorimetrie.webm](https://github.com/user-attachments/assets/bb597a6b-fac5-4b98-9630-c5bc78e0f8cc)
 
-Folder projects support the same alignment, adjustments, export and JSON save/load workflow. The project remembers the imported filenames and their order so rebuilding a deleted cache preserves frame settings; the original files must still be available. Existing video projects remain compatible.
+**Qu'est-ce qu'une photo animée** ?
+Simple ! Depuis le smartphone (ou un appareil photo adapté), on prend une photo comme d'habitude. L'appareil a déjà mémorisé 1s de video avant que vous ne déclenchiez, puis il continue encore 1s après, ce qui réalise une petite video courte de 20 à 80 images (en fonction de sa capacité à digérer votre fréquence de déclenchements).
 
-Import regression checks: `dotnet run --project tests/FolderImportChecks`.
+**A quoi ça sert ? Qu' est-ce que ça apporte ?**
+On peut se le demander... Lorsque cette image video sort du smartphone, c'est un fichier .JPG, qui contient, par une astuce d'encodage maison, une photo fixe, et un fichier MPEG à la queue leu leu dans le même fichier. 
 
-- Target framework: `.NET 8`
-- UI technology: `WinForms`
-- Supported OS for the current app: `Windows`
-- Repository status: source-first, no installer provided
-- Recommended distribution model for non-technical users: signed or checksummed ZIP builds published in GitHub `Releases`
+Rares sont les logiciels qui savent exploiter la video incrustée à la fin du fichier. Ils ne savent restituer que l'image simple. Les pages WEB ne savent pas non plus les exploiter autrement qu'en visualisant l'image simple.
+ 
+Donc à quoi ça sert ? Pas grand chose en l'état... On est condamné à consulter l'animation depuis son smartphone ou appareil photo. Ca sert à pouvoir  choisir la meilleure photo de la rafale, mais pas à exploiter la video.
 
-## Requirements
+Pourtant, ces animations courtes apportent de la vie et du relief à une photo. Elles n'ont pas non plus la lourdeur des videos de 10 min.
+En ornithologie, les oiseaux étant constamment en mouvement, 1s d'animation, c'est déjà un régal, une tranche de vie, comparé à une photo fixe, plastique, graphique, mais figée, comme empaillée.
 
-- Windows
-- .NET 8 SDK
-- FFmpeg available next to the compiled executable as `ffmpeg.exe`
-- [Microsoft Edge WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/) for export playback (exporting itself does not require it)
+**Quelles sont les difficultés ?**
+En parlant d'ornithologie, les photos sont prises avec une longue vue, et un smartphone peu onéreux (digiscopie), ou un appareil photo avec un téléobjectif puissant (400mm, 600mm, 800mm). Avec le grossissement important, il est impossible de ne pas trembler ni garder le sujet bien en place. Il faut avoir un trépied, et/ou au moins une optique stabilisée. Mais même là, une vidéo a du mal à garder le sujet centré sur le lapse de temps. Plutôt bien avec un trépied (attention à ne rien faire bouger au moment du déclenchement), encore possible avec une optique stabilisée à main levée, impossible sans stabilisation.
 
-## For End Users
+Possesseur d'une longue vue stabilisée (par flemme de me déplacer avec un trépied), et d'un smartphone pour faire de la digiscopie, j'ai essayé les photos animées, et confronté à l'absence d'outil pour les retravailler, je me suis lancé dans l'aventure de créer cet outil encore manquant. Je l'utilise pour moi, et le met à disposition sans contrainte de license, ni de code source pour tous ceux qui voudraient tenter l'aventure. 
+MotionPhotoWorkBench est né avec des moyens limités : je n'ai pas de MAC, je tourne sous Windows, donc il n'est ciblé que Windows pour l'instant. Si ce projet arrive à intéresser une communauté, il grandira, mais pour l'instant, il a cette limite.
 
-If you do not want to install Visual Studio or the .NET SDK, use a packaged build from the repository `Releases` page when one is available.
+**Comment ça marche**
 
-Minimal user documentation is also available in the repo-managed wiki pages:
+Ce programme se base sur **FFMPEG** https://github.com/ffmpeg/ffmpeg (libre de droit, très répandu, efficace, merci aux concepteurs) pour **décomposer la video en images individuelles** et **recompose les images travaillées par MotionPhotoWorkbench en vidéo**.
+Le programme offre les commandes pour **recentrer automatiquement chaque image sur un point d'ancrage** (stabilisation), **aligne et recoupe automatiquement les images sur ce point d'ancrage**. On peut **écarter des images** de mauvaise qualité, appliquer un **réglage colorimétrique** sur toutes les images. Une **prévisualisation en image fixe, avec les mouvements en transparence** vous permet de choisir une **fenêtre de crop** en précisant le **ration X/Y**. Puis l'export final est assuré par FFMPEG, dans un format auchoix **Mpeg, WEBM, WEBP, GIF animé** (lourd), avec possibilité de **prévisualiser la video** depuis l'application, avec **indication de sa taille**. Le pilotage de FFMPEG est transparent. L'ensemble des manipulations est assez rapide (5 à 20 min), et peut être **sauvegardé dans un projet** (hors frames individuelles qui seront re-extraites en cas de reprise du projet). Le résultat, léger en taille est exploitable dans une simple balise HTML. **Les images sources sont évidemment préservées**, **le traitement est réalisé dans un répertoire temporaire, et le programme vous indique avant sa taille probable**, en fonction de la source, et de l'espace disque disponible.
 
-- [Get Started](docs/wiki/Get-Started.md)
-- [First Steps](docs/wiki/First-Steps.md)
-- [Installation](docs/wiki/Installation.md)
+**Quelles sources d'images peut-il traiter ?**
+plusieurs sources variées : 
+- un répertoire avec des photos ordonnées déjà extraites (peu importe leur conventions de noms ou leur format, elles seront prises par ordre alphabétique) : on a ici coupé le passage de la vidéo aux images individuelles pour pouvoir traiter les rafales de photos déjà disponibles en images individuelles
+- des vidéos d'un peu tous les formats standards - mais courtes s'il vous plait, avec 2s, vous aurez besoin d'à peu près 150Mo de disque pour le traitement, alors pour 1 min, ça fait... 4,5 Go ?
+- des images animées sortant de smartphones tels que google Pixel, Samsung, iPhone, avec leurs formats propriétaires : une image + une video à la suite dans le même fichier.
 
-Recommended end-user flow:
+**attention**, en l'état, limité par mon budget smartphone, j'ai utilisé le seul que j'avais, un google Pixel (9A qui a la bonne idée de ne posséder que 2 objectifs, ce qui est pratique en digiscopie). Ne disposant pas de Samsung ou iPhone, je suis preneur de vos retours, et si le programme ne les reconnait pas, n'hésitez pas à m'envoyez des exemples sources de photos, je me ferai fort des les rendre compatibles - c'est un peu le but.
 
-1. Download the latest Windows self-contained ZIP asset from `Releases`.
-2. Extract it to a local folder.
-3. Download `ffmpeg.exe` separately from a trusted source.
-4. Copy `ffmpeg.exe` next to `MotionPhotoWorkbench.exe`.
-5. Launch the application.
+**Question de taille**
 
-This repository intentionally does not bundle FFmpeg. See `THIRD_PARTY_NOTICES.md` and `third_party/ffmpeg/README.md` for the setup details.
+[RougeGorge__stabilise_roundTrip_1ImageSur2_colorimetrie.webm](https://github.com/user-attachments/assets/bb597a6b-fac5-4b98-9630-c5bc78e0f8cc)
 
-## Build
+- La taille de **0,3 Mo** en WebM est la meilleure option, écologique, presque étonnante comparée à une image simple. 
+- **la source image animée** sortie du pixel 9a) : **3,5 Mo**
+- **le MPEG brut extrait** par MotionPhotoWorkBench : **2,3 Mo** : contient **45 images**
+- **Un WEBM équivalent au MPEG** (nombre et taille d'images) : **0,5 Mo**
+- pour le traitement, les frames individuelles sont travaillées en PNG. ici, **chaque PNG fait 1Mo**
+- le traitement nécessite 3 répertoires temporaires : 
+     - frames : les 45 frames de départ en PNG
+     - final : les frames de travail, visualisées avec la colorimétrie, ne contient pas les images écartées. Chaque changement de colorimétrie repart des frames initiales (frames) : pas d'images supprimées => 45 images aussi
+     - aligned : les images centrées et découpées pour se superposer parfaitement, prêtes pour être fusionnées en vidéo. 45 images ici.
+- la **taille du répertoire temporaire sera donc ici de l'ordre de 140Mo** : 1 Mo (PNG) * 45 (nb images) * 3 (répertoires) + 2,3 Mo video MPEG extraite de l'image animée. Ce répertoire temporaire vit le temps du traitement et peut être supprimé à tout moment, auquel cas il sera recalculé à partir de l'image ou répertoire source
 
-```powershell
-dotnet restore
-dotnet build MotionPhotoWorkbench.sln -c Release
-```
+**Qualité des images**
 
-The project file currently targets `net8.0-windows`, so the application is expected to build and run on Windows.
+Il n'y a pas de magie, une photo fixe peu compressée apportera toujours plus de piqué et de détails, avec cet effet Wahoo, et la possibilité de l'imprimer grand format.
+Mais pour une visualisation écran, la photo animée apporte ce petit plus de vie et de relief : son but n'est pas de pouvoir être imprimée, mais d'illustrer un moment de vie et de comportement, tout en restant écologique en consultation.
+ 
+Les photos graphiques et les vidéos documentaires ont leur propre intérêt et cibles. Les photos animées naviguent entre les deux, ni photo, ni video, mais les deux à la fois; leur plus, c'est la vie, le comportement du sujet et le relief, l'instant capturé et pétillant.
 
-## Run
+Pour le rapport taille/qualité, le format WEBM est bluffant, presque écologique. Mes résultats oscillent entre 300Ko et 1Mo, rarement plus, en moyenne 500Ko, donc pas de honte à les présenter sur des sites WEB.
 
-Build the solution, then place `ffmpeg.exe` next to the generated executable before launching the application.
 
-Typical output location:
+PUB (mais sans intérêt personnel), vous pouvez voir plus d'exemples de résultats sur mon site de balade ornithologique et nature en ville : https://www.baladechampvert.fr
 
-```text
-bin\Debug\net8.0-windows\
-bin\Release\net8.0-windows\
-
-or directly in the folder where you unzip a release downloaded from github.
-```
-
-## Public Release Guidance
-
-For a public repository, it is acceptable and common to publish ready-to-run binaries for non-technical users, provided that the distribution remains transparent and traceable.
-
-Recommended good practices for this repository:
-
-- Publish binaries through GitHub `Releases`, not as committed `.exe` files inside the repository history.
-- Tie each binary release to a Git tag such as `v1.2.3`.
-- Make sure the released ZIP is built from the exact tagged source.
-- Include a short changelog and the source tag or commit in the release notes.
-- Publish a `SHA256` checksum for the ZIP so users can verify integrity.
-- State clearly that `ffmpeg.exe` is required at runtime but is not included.
-- Keep license and third-party notices easy to find from the README and release notes.
-- If possible later, add Windows code signing for additional trust.
-
-This repository includes a GitHub Actions workflow to package a Windows release ZIP and checksum automatically when a version tag is pushed.
-
-Suggested release process:
-
-1. Update the version and documentation.
-2. Commit and push to `master`.
-3. Create and push a tag such as `v1.2.3`.
-4. Let GitHub Actions build the Windows ZIP and checksum.
-5. Publish the GitHub Release with the generated artifacts and release notes.
-
-## Code Signing Policy
-
-Official Windows binaries for this project are published through GitHub `Releases`.
-
-Policy:
-
-- Only binaries built from the public source code in this repository are eligible for official signing.
-- Official binaries must be produced from a tagged revision in this repository.
-- The maintainer is responsible for reviewing the tagged source and approving the release artifacts before publication.
-- GitHub `Releases` is the canonical distribution channel for official binaries of this project.
-- Third-party tools that are not part of this repository, including `ffmpeg.exe`, are not signed by this project and are not included in the official release ZIP unless a future release note explicitly says otherwise.
-
-Signing service statement:
-
-- Free code signing for open source releases may be provided by SignPath.io, with a certificate issued by the SignPath Foundation.
-- If a release is not signed, it may still be published as an official release when it is traceable to the public source code and accompanied by release notes and a SHA256 checksum.
-
-Privacy statement:
-
-- MotionPhotoWorkbench is a local desktop application.
-- It does not require a user account.
-- It does not upload project content or personal files to an external service as part of its normal operation.
-- Network access is only expected when the user explicitly downloads dependencies, opens external links, or uses external services outside the application.
-
-## FFmpeg
-
-FFmpeg is required for frame extraction and video export.
-
-- FFmpeg is not redistributed in this repository
-- Official FFmpeg download page: `https://ffmpeg.org/download.html`
-- Recommended Windows provider page: `https://www.gyan.dev/ffmpeg/builds/`
-- Recommended Windows choice: x64 `release essentials`
-- After download, place `ffmpeg.exe` beside the application executable
-- See `THIRD_PARTY_NOTICES.md` and `third_party/ffmpeg/README.md` for setup guidance
-
-Important distribution note:
-
-- The application ZIP published in GitHub `Releases` should not include FFmpeg unless you explicitly decide to take on that redistribution and license-review responsibility.
-
-## Samples
-
-The repository includes real sample media in `Samples/` so that visitors can quickly test the software and compare the exported formats.
-
-Included samples:
-
-- a motion photo JPEG source
-- exported GIF, MP4, WebM, and animated WebP files created by the application for demonstration.
-- a small HTML page for previewing the exported files in a browser
-
-The previously saved `project.json` sample is intentionally not published because it contained personal absolute filesystem paths.
-
-## Known Limitations
-
-- Windows-only UI for now
-- No packaged installer
-- FFmpeg path is not configurable from the UI yet
-- Some motion photo variants may contain embedded video in formats this tool does not detect automatically
-- The repository does not ship a reusable sample project JSON because local path data was removed from publication
-
-## Roadmap
-
-- Improve public documentation and onboarding
-- Add CI validation for public contributions
-- Decouple core processing logic further from the WinForms UI
-- Evaluate a future cross-platform UI path if the project direction justifies it
-
-## Contributing
-
-Small improvements and bug reports are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for lightweight contribution guidelines.
-
-## Licensing
-
-The repository uses two licenses:
-
-- Source code is licensed under the MIT License
-- Media files and demo assets in [`Samples/`](/c:/perso/VisualStudio/MotionPhotoWorkbench/Samples) are licensed under Creative Commons Attribution 4.0 International (`CC BY 4.0`)
-
-This means the software code and the sample media do not share the same redistribution terms. For the sample media details and required attribution, see [`Samples/LICENSE.md`](/c:/perso/VisualStudio/MotionPhotoWorkbench/Samples/LICENSE.md).
 
 ## Code License
 
-This project is licensed under the MIT License. See [LICENSE.txt](LICENSE.txt).
+Le code est sous license MIT, donc libre de récupération et adaptation. Voir : [LICENSE.txt](LICENSE.txt).
