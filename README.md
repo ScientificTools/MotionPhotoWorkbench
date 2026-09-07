@@ -10,7 +10,8 @@ It is designed to reprocess a short video or a motion photo (from a smartphone o
 **Result below:**  
 Processed video in **WEBM** format, **0.3 MB**, with **automatic frame recentering**, **color correction**, and **export-area selection in a 4:3 aspect ratio**. This processing was performed with every other frame kept.
 
-[RougeGorge__stabilise_roundTrip_1ImageSur2_colorimetrie.webm](https://github.com/user-attachments/assets/bb597a6b-f4a6-4b98-9630-c5bc78e0f8cc)
+[RougeGorge__stabilise_roundTrip_1ImageSur2_colorimetrie.webm](https://github.com/user-attachments/assets/974edf00-6170-40c1-be94-c6998ea763f0)
+
 
 **What is a motion photo?**  
 Simply put: with a smartphone (or a suitable camera), you take a photo as usual. The device has already recorded 1 second of video before you press the shutter, and then it continues recording briefly afterward.
