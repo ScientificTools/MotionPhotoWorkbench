@@ -1,79 +1,75 @@
 # MotionPhotoWorkbench
 
-**Que fait cet outil ?**
-Il a pour but de retraiter une video courte, ou une photo animée (smartphone, appareil photo prenant en rafale entre 20 et 80 images ), en effectuant des traitements image par image, avant de reconstituer une video dans un format d'export standard, **léger, et adapté aux pages Web** (webM, webP, Mpeg). Vous pourrez choisir les photos à garder, stabiliser l'animation avec un système d'ancrage automatique, appliquer une colorimétrie à l'ensemble des images, cropper le résultat dans un rectangle aux ratios choisis, définir une vitesse de défilement en img/s et contrôler le résultat puis l'exporter dans un format d'export standard, léger, exploitable directement dans une page WEB (webM, Mpeg, webP, gif animé) ou lecteur video (webM, Mpeg).
+**What does this tool do?**  
+It is designed to reprocess a short video or a motion photo (from a smartphone or a camera that captures burst sequences of 20 to 80 images) by applying image-by-image processing before rebuilding a video in a standard, lightweight export format suitable for web pages (WebM, WebP, MP4). You can choose which frames to keep, stabilize the animation with an automatic anchor-point system, apply color adjustments to the whole sequence, crop the result to a rectangle with the aspect ratio you want, set the playback speed in frames per second, preview the result, and then export it to a standard, lightweight format that can be used directly in a web page (WebM, MP4, WebP, animated GIF) or in a video player (WebM, MP4).
 
-**Exemple** : Image animée source provenant d'un Pixel 9A en digiscopie sur une longue vue, **avec forte instabilité** de 3,5 Mo 
+**Example:** source motion image from a Pixel 9a, captured through a spotting scope, **with strong instability** — 3.5 MB
 
-[rougeGorge_source.webm](https://github.com/user-attachments/assets/6a9e5c65-248a-49af-a273-41ece9fb6861) 
+[rougeGorge_source.webm](https://github.com/user-attachments/assets/6a9e5c65-248a-49af-a273-41ece9fb6861)
 
+**Result below:**  
+Processed video in **WEBM** format, **0.3 MB**, with **automatic frame recentering**, **color correction**, and **export-area selection in a 4:3 aspect ratio**. This processing was performed with every other frame kept.
 
-**Résultat ci dessous** : 
+[RougeGorge__stabilise_roundTrip_1ImageSur2_colorimetrie.webm](https://github.com/user-attachments/assets/bb597a6b-f4a6-4b98-9630-c5bc78e0f8cc)
 
-Vidéo après traitement, au format **WEBM** de **0,3 Mo**, avec **recentrage automatique des images**, **colorimétrie**, et **sélection de la zone d'export au ratio 4/3**. Ce traitement a été fait avec l'option **round trip (yoyo)** qui double les images avec la séquence avant, puis la même séquence en sens inverse, afin que la dernière image revienne sur la première. **L'option "une image sur deux"** a permis d'avoir le même nombre d'image que la séquence normale afin de garder la même taille (à peu près). La **vitesse de défilement**, par défaut à 20 images par secondes a été diminuée à 10 pour avoir le même rendu des mouvements.
+**What is a motion photo?**  
+Simply put: with a smartphone (or a suitable camera), you take a photo as usual. The device has already recorded 1 second of video before you press the shutter, and then it continues recording briefly afterward.
 
-[RougeGorge__stabilise_roundTrip_1ImageSur2_colorimetrie.webm](https://github.com/user-attachments/assets/bb597a6b-fac5-4b98-9630-c5bc78e0f8cc)
+**What is it for? What does it add?**  
+You may ask that question... When this image-video file comes out of the smartphone, it is a `.JPG` file that contains, through a proprietary encoding trick, a still photo and an MPEG video appended at the end of the file.
 
-**Qu'est-ce qu'une photo animée** ?
-Simple ! Depuis le smartphone (ou un appareil photo adapté), on prend une photo comme d'habitude. L'appareil a déjà mémorisé 1s de video avant que vous ne déclenchiez, puis il continue encore 1s après, ce qui réalise une petite video courte de 20 à 80 images (en fonction de sa capacité à digérer votre fréquence de déclenchements).
+Very few programs know how to use the embedded video at the end of the file. Most can only display the still image. Web pages also cannot normally make use of it except through special handling.
 
-**A quoi ça sert ? Qu' est-ce que ça apporte ?**
-On peut se le demander... Lorsque cette image video sort du smartphone, c'est un fichier .JPG, qui contient, par une astuce d'encodage maison, une photo fixe, et un fichier MPEG à la queue leu leu dans le même fichier. 
+So what is it for? Not much, as is... You are effectively limited to viewing the animation on your smartphone or camera. It can still be useful for choosing the best shot from the burst sequence. And yet, these short animations bring life and depth to a photo.
 
-Rares sont les logiciels qui savent exploiter la video incrustée à la fin du fichier. Ils ne savent restituer que l'image simple. Les pages WEB ne savent pas non plus les exploiter autrement qu'en visualisant l'image simple.
- 
-Donc à quoi ça sert ? Pas grand chose en l'état... On est condamné à consulter l'animation depuis son smartphone ou appareil photo. Ca sert à pouvoir  choisir la meilleure photo de la rafale, mais pas à exploiter la video.
+For bird photography, where the subject is constantly moving, 1 second of animation is already a treat — a small slice of life compared with a static photo.
 
-Pourtant, ces animations courtes apportent de la vie et du relief à une photo. Elles n'ont pas non plus la lourdeur des videos de 10 min.
-En ornithologie, les oiseaux étant constamment en mouvement, 1s d'animation, c'est déjà un régal, une tranche de vie, comparé à une photo fixe, plastique, graphique, mais figée, comme empaillée.
+**What are the difficulties?**  
+In bird photography, images are often taken through a spotting scope, using an inexpensive smartphone (digiscoping), or with a camera fitted with a powerful telephoto lens (400 mm, 600 mm, 800 mm). With that much magnification, the slightest movement becomes obvious.
 
-**Quelles sont les difficultés ?**
-En parlant d'ornithologie, les photos sont prises avec une longue vue, et un smartphone peu onéreux (digiscopie), ou un appareil photo avec un téléobjectif puissant (400mm, 600mm, 800mm). Avec le grossissement important, il est impossible de ne pas trembler ni garder le sujet bien en place. Il faut avoir un trépied, et/ou au moins une optique stabilisée. Mais même là, une vidéo a du mal à garder le sujet centré sur le lapse de temps. Plutôt bien avec un trépied (attention à ne rien faire bouger au moment du déclenchement), encore possible avec une optique stabilisée à main levée, impossible sans stabilisation.
+As the owner of a stabilized spotting scope (mainly because I was too lazy to carry a tripod) and a smartphone for digiscoping, I tried motion photos and, faced with the lack of suitable software, I decided to create this tool.
 
-Possesseur d'une longue vue stabilisée (par flemme de me déplacer avec un trépied), et d'un smartphone pour faire de la digiscopie, j'ai essayé les photos animées, et confronté à l'absence d'outil pour les retravailler, je me suis lancé dans l'aventure de créer cet outil encore manquant. Je l'utilise pour moi, et le met à disposition sans contrainte de license, ni de code source pour tous ceux qui voudraient tenter l'aventure. 
-MotionPhotoWorkBench est né avec des moyens limités : je n'ai pas de MAC, je tourne sous Windows, donc il n'est ciblé que Windows pour l'instant. Si ce projet arrive à intéresser une communauté, il grandira, mais pour l'instant, il a cette limite.
+MotionPhotoWorkbench was born from limited means: I do not have a Mac, I work on Windows, so for now it targets Windows only. If this project attracts enough interest from a community, it may evolve further.
 
-**Comment ça marche**
+**How it works**
 
-Ce programme se base sur **FFMPEG** https://github.com/ffmpeg/ffmpeg (libre de droit, très répandu, efficace, merci aux concepteurs) pour **décomposer la video en images individuelles** et **recompose les images travaillées par MotionPhotoWorkbench en vidéo**.
-Le programme offre les commandes pour **recentrer automatiquement chaque image sur un point d'ancrage** (stabilisation), **aligne et recoupe automatiquement les images sur ce point d'ancrage**. On peut **écarter des images** de mauvaise qualité, appliquer un **réglage colorimétrique** sur toutes les images. Une **prévisualisation en image fixe, avec les mouvements en transparence** vous permet de choisir une **fenêtre de crop** en précisant le **ration X/Y**. Puis l'export final est assuré par FFMPEG, dans un format auchoix **Mpeg, WEBM, WEBP, GIF animé** (lourd), avec possibilité de **prévisualiser la video** depuis l'application, avec **indication de sa taille**. Le pilotage de FFMPEG est transparent. L'ensemble des manipulations est assez rapide (5 à 20 min), et peut être **sauvegardé dans un projet** (hors frames individuelles qui seront re-extraites en cas de reprise du projet). Le résultat, léger en taille est exploitable dans une simple balise HTML. **Les images sources sont évidemment préservées**, **le traitement est réalisé dans un répertoire temporaire, et le programme vous indique avant sa taille probable**, en fonction de la source, et de l'espace disque disponible.
+This program relies on **FFmpeg** https://github.com/ffmpeg/ffmpeg (free to use, widely adopted, and efficient — thanks to its authors) to **split the video into individual frames** and **rebuild** the sequence afterward.
 
-**Quelles sources d'images peut-il traiter ?**
-plusieurs sources variées : 
-- un répertoire avec des photos ordonnées déjà extraites (peu importe leur conventions de noms ou leur format, elles seront prises par ordre alphabétique) : on a ici coupé le passage de la vidéo aux images individuelles pour pouvoir traiter les rafales de photos déjà disponibles en images individuelles
-- des vidéos d'un peu tous les formats standards - mais courtes s'il vous plait, avec 2s, vous aurez besoin d'à peu près 150Mo de disque pour le traitement, alors pour 1 min, ça fait... 4,5 Go ?
-- des images animées sortant de smartphones tels que google Pixel, Samsung, iPhone, avec leurs formats propriétaires : une image + une video à la suite dans le même fichier.
+The program provides controls to **automatically recenter each frame around an anchor point** (stabilization) and **automatically align and crop the frames around that anchor point**. You can also apply **color correction**.
 
-**attention**, en l'état, limité par mon budget smartphone, j'ai utilisé le seul que j'avais, un google Pixel (9A qui a la bonne idée de ne posséder que 2 objectifs, ce qui est pratique en digiscopie). Ne disposant pas de Samsung ou iPhone, je suis preneur de vos retours, et si le programme ne les reconnait pas, n'hésitez pas à m'envoyez des exemples sources de photos, je me ferai fort des les rendre compatibles - c'est un peu le but.
+**What image sources can it process?**  
+Several different sources:
 
-**Question de taille**
+- a directory containing already extracted, ordered photos (whatever their naming convention or format, they will be taken in alphabetical order): here we skipped the video stage and started directly from image files;
+- standard video files in most common formats — but please keep them short. With 2 seconds, you will already need roughly 150 MB of disk space for processing, so for 1 minute... 4.5 GB;
+- motion images produced by smartphones such as Google Pixel, Samsung, or iPhone, with their proprietary formats: a still image plus a video appended in the same file.
 
-[RougeGorge__stabilise_roundTrip_1ImageSur2_colorimetrie.webm](https://github.com/user-attachments/assets/bb597a6b-fac5-4b98-9630-c5bc78e0f8cc)
+**Note:** given my limited smartphone budget, I used the one I had, a Google Pixel 9a, which conveniently has only two lenses — very handy for digiscoping.
 
-- La taille de **0,3 Mo** en WebM est la meilleure option, écologique, presque étonnante comparée à une image simple. 
-- **la source image animée** sortie du pixel 9a) : **3,5 Mo**
-- **le MPEG brut extrait** par MotionPhotoWorkBench : **2,3 Mo** : contient **45 images**
-- **Un WEBM équivalent au MPEG** (nombre et taille d'images) : **0,5 Mo**
-- pour le traitement, les frames individuelles sont travaillées en PNG. ici, **chaque PNG fait 1Mo**
-- le traitement nécessite 3 répertoires temporaires : 
-     - frames : les 45 frames de départ en PNG
-     - final : les frames de travail, visualisées avec la colorimétrie, ne contient pas les images écartées. Chaque changement de colorimétrie repart des frames initiales (frames) : pas d'images supprimées => 45 images aussi
-     - aligned : les images centrées et découpées pour se superposer parfaitement, prêtes pour être fusionnées en vidéo. 45 images ici.
-- la **taille du répertoire temporaire sera donc ici de l'ordre de 140Mo** : 1 Mo (PNG) * 45 (nb images) * 3 (répertoires) + 2,3 Mo video MPEG extraite de l'image animée. Ce répertoire temporaire vit le temps du traitement et peut être supprimé à tout moment, auquel cas il sera recalculé à partir de l'image ou répertoire source
+**File size**
 
-**Qualité des images**
+- The **0.3 MB** WebM version is the best option: eco-friendly and surprisingly small compared with a single image.
+- The **source motion image** from the Pixel 9a: **3.5 MB**
+- The **raw MPEG extracted** by MotionPhotoWorkbench: **2.3 MB** and contains **45 frames**
+- An equivalent **WebM** (same number and size of frames): **0.5 MB**
+- During processing, individual frames are handled as PNG files. Here, **each PNG is about 1 MB**
+- The workflow requires 3 temporary directories:
+  - `frames`: the 45 original frames as PNG
+  - `final`: the working frames, viewed with color correction; discarded frames are not included. Each color-correction change starts again from the original `frames` directory: no image quality loss.
+  - `aligned`: the centered and cropped images, ready to be merged into a video. 45 images here.
+- The **temporary directory size** is therefore about **140 MB** in this case: 1 MB (PNG) × 45 (images) × 3 (directories) + 2.3 MB of MPEG video extracted from the motion image. This temporary directory is only a working area and can be deleted once processing is complete.
 
-Il n'y a pas de magie, une photo fixe peu compressée apportera toujours plus de piqué et de détails, avec cet effet Wahoo, et la possibilité de l'imprimer grand format.
-Mais pour une visualisation écran, la photo animée apporte ce petit plus de vie et de relief : son but n'est pas de pouvoir être imprimée, mais d'illustrer un moment de vie et de comportement, tout en restant écologique en consultation.
- 
-Les photos graphiques et les vidéos documentaires ont leur propre intérêt et cibles. Les photos animées naviguent entre les deux, ni photo, ni video, mais les deux à la fois; leur plus, c'est la vie, le comportement du sujet et le relief, l'instant capturé et pétillant.
+**Image quality**
 
-Pour le rapport taille/qualité, le format WEBM est bluffant, presque écologique. Mes résultats oscillent entre 300Ko et 1Mo, rarement plus, en moyenne 500Ko, donc pas de honte à les présenter sur des sites WEB.
+There is no magic: a lightly compressed still photo will always deliver more sharpness and detail, with that wow effect and the possibility of printing it in a large format.  
+But for viewing on screen, a motion photo adds that extra sense of life and depth: its purpose is not to be printed, but to capture a moment and a behavior, much like a field note.
 
+Graphic photographs and documentary videos each have their own interest and audience. Motion photos sit between the two — neither still photo nor video, but both at once. Their strength is that they are short and lively.
 
-PUB (mais sans intérêt personnel), vous pouvez voir plus d'exemples de résultats sur mon site de balade ornithologique et nature en ville : https://www.baladechampvert.fr
+In terms of size versus quality, the WebM format is impressive — almost eco-friendly. My results usually range between 300 KB and 1 MB, rarely more, and average around 500 KB, so there is no shame in showing them online.
 
+For more examples of results, you can visit my birdwatching and urban nature walking site: https://www.baladechampvert.fr
 
 ## Code License
 
-Le code est sous license MIT, donc libre de récupération et adaptation. Voir : [LICENSE.txt](LICENSE.txt).
+The code is licensed under the MIT License, so it may be freely reused and adapted. See [LICENSE.txt](LICENSE.txt).
