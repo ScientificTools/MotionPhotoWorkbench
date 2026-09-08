@@ -3,6 +3,45 @@
 **What does this tool do?**  
 It is designed to reprocess a short video or a motion photo (from a smartphone or a camera that captures burst sequences of 20 to 80 images) by applying image-by-image processing before rebuilding a video in a standard, lightweight export format suitable for web pages (WebM, WebP, MP4). You can choose which frames to keep, stabilize the animation with an automatic anchor-point system, apply color adjustments to the whole sequence, crop the result to a rectangle with the aspect ratio you want, set the playback speed in frames per second, preview the result, and then export it to a standard, lightweight format that can be used directly in a web page (WebM, MP4, WebP, animated GIF) or in a video player (WebM, MP4).
 
+**There are already tools available for this. What does MotionPhotoWorkbench bring to the table?**
+
+MotionPhotoWorkbench is **not** useful in the following cases:
+
+* If you are just looking to convert your video to WebM:
+  * You can directly use the FFmpeg command line (MotionPhotoWorkbench uses it under the hood anyway): `ffmpeg -i file.mp4 -c:v libvpx-vp9 -b:v 0 -crf 30 -c:a libopus file.webm`
+* If it's for occasional use, you can do it online at cloudconvert.com
+
+
+* If you shoot motion photos with your smartphone, some devices offer automatic stabilization:
+  * On a Google Pixel, from the Photos app, go to `...` > **Save as...** > **Video**: your stabilized video will be exported to your gallery in MPEG format, right next to the motion photo, appended with "-stabilized".
+  * If the result works for you, you're all set—no need to go any further.
+  * Since stabilization is automatic, it doesn't work in every situation (results can be hit-or-miss with digiscoping or spotting scopes), and certain frames from the burst are automatically discarded, which can be frustrating. However, it often turns out well and usable.
+
+
+
+I designed MotionPhotoWorkbench for all other cases that lacked a seamless, all-in-one solution:
+
+* **Full control over frame selection:** Easily pick which images to keep in the sequence using the `Delete` or `Enter` keys, or dedicated buttons.
+* **Precise stabilization control:**
+  * Select a tracking point on the screen on the first image, then launch the search across the following frames.
+  * It memorizes a small bounding box around this point and searches for it on the next image using a spiral search pattern.
+  * It keeps the closest matching point and moves on to the next frame.
+  * Two customizable confidence thresholds: Below 85%, it gives up. Above 95%, it confirms the match (green). Between the two, it keeps the match but flags it with a warning (orange).
+  * You can visually see the detected points on every frame.
+  * You can fine-tune or reposition points manually, restart tracking for subsequent frames, or manually set the point on every single frame.
+
+
+* **Easy video cropping after frame alignment:**
+  * All frames are overlaid with transparency, making it easy to spot camera movement and select an appropriate zoom rectangle in your desired aspect ratio.
+
+
+* **Homogeneous color grading:**
+  * Apply consistent color adjustments across all images—useful if a video lacks pop.
+
+
+* **Seamless looping (Yoyo effect):**
+  * Short web videos played on a loop often suffer from a jarring jump when restarting after 2 to 4 seconds. Enabling the **yoyo effect** generates a video that plays forward then backward, creating a smooth, invisible transition between the last and first frames *(note: not suitable for subjects moving continuously in one direction)*.
+
 **Example:** source motion image from a Pixel 9a, captured through a spotting scope, **with strong instability** — 3.5 MB
 
 [rougeGorge_source.webm](https://github.com/user-attachments/assets/6a9e5c65-248a-49af-a273-41ece9fb6861)
