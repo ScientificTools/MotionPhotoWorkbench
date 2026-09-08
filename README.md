@@ -42,12 +42,24 @@ I designed MotionPhotoWorkbench for all other cases that lacked a seamless, all-
 * **Seamless looping (Yoyo effect):**
   * Short web videos played on a loop often suffer from a jarring jump when restarting after 2 to 4 seconds. Enabling the **yoyo effect** generates a video that plays forward then backward, creating a smooth, invisible transition between the last and first frames *(note: not suitable for subjects moving continuously in one direction)*.
 
+* **You are using a camera that allows you to take bursts of a set of photos**, and you want to assemble them into a stabilized video:
+
+  * Your camera will not provide you with the video (except with Panasonic and its 4K photos), but a folder containing the individual images.
+
+  * MotionPhotoWorkbench can work directly with this source. The input flows are:
+
+    * JPEG+MPEG motion photo > MPEG extraction > **folder of individual images converted to PNG > processing > MPEG, WEBM, WEBP, GIF export**
+
+    * video (MPEG, others) > **folder of individual images converted to PNG > processing > MPEG, WEBM, WEBP, GIF export**
+
+    * folder of individual source photos (standard formats please, no RAW) > **folder of individual images converted to PNG > processing > MPEG, WEBM, WEBP, GIF export**
+
 **Example:** source motion image from a Pixel 9a, captured through a spotting scope, **with strong instability** — 3.5 MB
 
 [rougeGorge_source.webm](https://github.com/user-attachments/assets/6a9e5c65-248a-49af-a273-41ece9fb6861)
 
 **Result below:**  
-Processed video in **WEBM** format, **0.3 MB**, with **automatic frame recentering**, **color correction**, and **export-area selection in a 4:3 aspect ratio**. This processing was performed with every other frame kept.
+Processed video in **WEBM** format, **0.3 MB**, with **automatic frame recentering**, **color correction**, and **export-area selection in a 4:3 aspect ratio**. This processing was performed with the yoyo effect (2x images in a loop) and choice to keep 1 image over 2 (/2 images to keep the same number of images and the smallest size).
 
 [RougeGorge__stabilise_roundTrip_1ImageSur2_colorimetrie.webm](https://github.com/user-attachments/assets/974edf00-6170-40c1-be94-c6998ea763f0)
 
