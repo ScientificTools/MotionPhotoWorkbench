@@ -9,7 +9,7 @@ MotionPhotoWorkbench is **not** useful in the following cases:
 
 * If you are just looking to convert your video to WebM:
   * You can directly use the FFmpeg command line (MotionPhotoWorkbench uses it under the hood anyway): `ffmpeg -i file.mp4 -c:v libvpx-vp9 -b:v 0 -crf 30 -c:a libopus file.webm`
-* If it's for occasional use, you can do it online at cloudconvert.com
+  * If it's for occasional use, you can do it online at cloudconvert.com
 
 
 * If you shoot motion photos with your smartphone, some devices offer automatic stabilization:
