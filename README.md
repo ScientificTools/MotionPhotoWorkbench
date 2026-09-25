@@ -3,6 +3,8 @@
 <img width="100%" alt="image" src="https://github.com/user-attachments/assets/32e4d09a-6852-4382-8f07-4f4461e8e2a5" />
 
 
+**Exemple of Web site** with light stabilized video processed from motion pictures with this tool : https://www.baladechampvert.fr
+
 **What does this tool do?**  
 It is designed to reprocess a short video or a motion photo (from a smartphone or a camera that captures burst sequences of 20 to 80 images) by applying image-by-image processing before rebuilding a video in a standard, lightweight export format suitable for web pages (WebM, WebP, MP4). You can choose which frames to keep, stabilize the animation with an automatic anchor-point system, apply color adjustments to the whole sequence, crop the result to a rectangle with the aspect ratio you want, set the playback speed in frames per second, preview the result, and then export it to a standard, lightweight format that can be used directly in a web page (WebM, MP4, WebP, animated GIF) or in a video player (WebM, MP4).
 
