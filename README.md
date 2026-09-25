@@ -1,6 +1,6 @@
 # MotionPhotoWorkbench
 
-<img width="3138" height="1912" alt="image" src="https://github.com/user-attachments/assets/a11eb160-5f63-4a56-9397-e74d69bd553a" />
+<img width="100%" alt="image" src="https://github.com/user-attachments/assets/32e4d09a-6852-4382-8f07-4f4461e8e2a5" />
 
 
 **What does this tool do?**  
